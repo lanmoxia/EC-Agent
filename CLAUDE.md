@@ -17,20 +17,25 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 **打开项目的第一件事，按顺序执行：**
 
 1. `git pull` — 拉取最新代码
-2. 读取最近 1-2 天的 `conversation-log-*.md`（按日期排序取最新的）
-3. 输出一段"项目现状摘要"给用户，格式：
-   - 当前功能状态（服务是否需要启动）
+2. 检测环境：`node_modules` 不存在 或 Node 版本不是 22 → 立即运行 `.\setup.ps1`，等结果再继续
+3. 读取最近 1-2 天的 `conversation-log-*.md`（按日期排序取最新的）
+4. 输出一段"项目现状摘要"给用户，格式：
+   - 环境状态（Node 版本、依赖是否就绪）
    - 上次做到哪里、有无未完成任务
    - 今天建议优先做什么
 
-**启动服务（如果用户需要开发）：**
-```
-# 后端（新 PowerShell 窗口）
-cd e:\gs615\server; node app.js
+**setup.ps1 说明：**
+- 检测 nvm-windows → 未装则给出安装命令/链接
+- 检测 Node 22 → 版本不对则自动用 nvm 切换
+- 检测 server/.env → 未配置则提示填写 DASHSCOPE_API_KEY
+- 安装 server + client 依赖 → 未装则自动 npm install
+- 每次只需在问题机器上跑一次，环境就绪后不再需要
 
-# 前端（新 PowerShell 窗口）
-cd e:\gs615\client; npm run dev
-```
+**启动服务（环境就绪后）：**
+
+后端（新 PowerShell 窗口）：`cd server; node app.js`
+
+前端（新 PowerShell 窗口）：`cd client; npm run dev`
 
 **不要**等用户问"我们上次做到哪了"才去读 log，主动先读先汇报。
 
