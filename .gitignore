@@ -1,0 +1,36 @@
+node_modules/
+.env
+
+# 数据库文件
+*.db
+*.db-shm
+*.db-wal
+
+# 上传临时目录
+server/uploads/*
+!server/uploads/.gitkeep
+
+# 前端构建产物
+client/dist/
+
+# 系统文件
+.DS_Store
+Thumbs.db
+
+# 环境变量（含 API Key）
+server/.env
+
+# 报告文件（本地生成）
+reports/
+
+# 备份目录
+memory-backup/
+
+# 临时视频文件（压缩/增强产物）
+*_small.mp4
+*_voice.mp4
+*_frames/
+
+# npm 日志
+npm-debug.log*
+*.log

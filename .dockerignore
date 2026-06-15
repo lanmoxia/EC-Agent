@@ -1,0 +1,30 @@
+# Node modules (rebuilt inside container)
+server/node_modules
+client/node_modules
+
+# Frontend build artifacts (rebuilt inside container)
+client/dist
+
+# Dev / OS artifacts
+**/.DS_Store
+**/Thumbs.db
+**/*.log
+
+# Git history
+.git
+.gitignore
+
+# Claude artifacts
+.claude
+conversation-log-*.md
+memory-backup/
+
+# Database and reports (mounted as volumes at runtime)
+claude-vision.db
+reports/
+
+# Uploaded videos (mounted as volume at runtime)
+server/uploads/
+
+# Env file - docker-compose reads it via env_file, don't bake into image
+server/.env

@@ -1,0 +1,16 @@
+services:
+  app:
+    build: .
+    image: gs615-app
+    ports:
+      - "3000:3000"
+    env_file:
+      - server/.env
+    environment:
+      NODE_ENV: production
+    volumes:
+      # Persist DB, reports, and uploads outside the container
+      - ./claude-vision.db:/app/claude-vision.db
+      - ./reports:/app/reports
+      - ./server/uploads:/app/server/uploads
+    restart: unless-stopped

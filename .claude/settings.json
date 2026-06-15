@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "PowerShell($proc = Get-NetTCPConnection -LocalPort 3000 -ErrorAction SilentlyContinue | Where-Object State -eq 'Listen' | Select-Object -First 1; if \\($proc\\) { $procId = $proc.OwningProcess; Stop-Process -Id $procId -Force; \"Killed PID $procId\" } else { \"Port 3000 free\" })",
+      "PowerShell(Invoke-WebRequest -Uri \"http://localhost:3000\" -UseBasicParsing -TimeoutSec 5)",
+      "PowerShell(Invoke-WebRequest -Uri \"http://localhost:3000/api/tasks\" -UseBasicParsing -TimeoutSec 5)",
+      "PowerShell(Start-Process powershell -ArgumentList '-NoExit', '-Command', 'cd e:\\\\gs615\\\\server; node app.js')"
+    ]
+  }
+}
