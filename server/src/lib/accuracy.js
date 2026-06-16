@@ -236,7 +236,7 @@ function extractJson(text) {
 // ── L2 定向复核（盲审 + 字段级比对） ─────────────────────────────
 
 /**
- * 10 个最致命字段，每个带枚举值，使两次独立判断可被程序比对。
+ * 最致命字段，每个带枚举值，使两次独立判断可被程序比对。
  * type: 'int' 整数比对；'enum' 枚举字符串比对。
  * uncertain/unclear 一律视为「不确定」，不判矛盾只标存疑。
  */
@@ -249,6 +249,8 @@ const FATAL_FIELDS = [
   { key: "movement_direction", label: "主体移动方向",       type: "enum", enums: ["left_to_right", "right_to_left", "near_to_far", "far_to_near", "static", "uncertain"] },
   { key: "voice_type",         label: "声源画内/画外",      type: "enum", enums: ["onscreen", "offscreen", "both", "none", "uncertain"] },
   { key: "speaker_count",      label: "说话人数量",         type: "int" },
+  { key: "speak_order",        label: "声部/说话顺序",      type: "enum", enums: ["offscreen_first", "onscreen_first", "single_onscreen", "single_offscreen", "simultaneous", "no_speech", "uncertain"] },
+  { key: "look_at_camera",     label: "角色是否看镜头",     type: "enum", enums: ["yes", "no", "partial", "uncertain"] },
   { key: "book_face",          label: "书封面朝向",         type: "enum", enums: ["toward_camera", "away_from_camera", "toward_subject", "side", "no_book", "uncertain"] },
   { key: "camera_motion",      label: "主镜头运动",         type: "enum", enums: ["static", "push_in", "pull_back", "pan_left", "pan_right", "tilt", "handheld_follow", "mixed", "uncertain"] },
 ];
@@ -286,7 +288,7 @@ async function extractFactSheet(report, { onProgress = () => {} } = {}) {
 ${buildFieldSpec()}
 
 严格只输出 JSON，键为上面的英文 key：
-{ "char_count": "...", "is_one_take": "...", "shot_count": "...", "subject_position": "...", "entry_direction": "...", "movement_direction": "...", "voice_type": "...", "speaker_count": "...", "book_face": "...", "camera_motion": "..." }
+{ "char_count": "...", "is_one_take": "...", "shot_count": "...", "subject_position": "...", "entry_direction": "...", "movement_direction": "...", "voice_type": "...", "speaker_count": "...", "speak_order": "...", "look_at_camera": "...", "book_face": "...", "camera_motion": "..." }
 
 —— 报告全文 ——
 ${report}`;
@@ -306,9 +308,11 @@ ${buildFieldSpec()}
 - 移动方向/入画方向：以画面 2D 坐标为准（画面左边=left，远处=画面上方）。这是最易错项，务必看仔细。
 - 一镜到底：注意「书闭合→翻开」「人物姿态瞬间不连贯」这类瞬间硬切，有则填 no。
 - 声源：分清画内人物在说话（嘴动）还是画外配音。
+- speak_order（说话顺序）：听整段，判断谁先开口——画外音先出=offscreen_first，画内人物先开口=onscreen_first，全程单人画内=single_onscreen，全程单人画外=single_offscreen，两人几乎同时=simultaneous，无人说话=no_speech。
+- look_at_camera（看镜头）：主体眼睛是否直视镜头——是=yes，看别处/低头=no，时看时不看=partial。
 
 严格只输出 JSON，键为上面的英文 key：
-{ "char_count": "...", "is_one_take": "...", "shot_count": "...", "subject_position": "...", "entry_direction": "...", "movement_direction": "...", "voice_type": "...", "speaker_count": "...", "book_face": "...", "camera_motion": "..." }`;
+{ "char_count": "...", "is_one_take": "...", "shot_count": "...", "subject_position": "...", "entry_direction": "...", "movement_direction": "...", "voice_type": "...", "speaker_count": "...", "speak_order": "...", "look_at_camera": "...", "book_face": "...", "camera_motion": "..." }`;
 
   onProgress("定向复核：盲审视频（不看报告）…");
   const raw = await callDashScope([
