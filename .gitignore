@@ -37,3 +37,6 @@ npm-debug.log*
 
 # 准确性校验运行时台账
 accuracy-issues.md
+
+# Claude 本地权限配置（每机独立，不进库）
+.claude/settings.local.json
