@@ -8,7 +8,7 @@ const ReportModel = require("../models/report.model");
 const CaseModel  = require("../models/case.model");
 const { analyzeVideo } = require("../lib/video-analyzer");
 const { validateTimeline } = require("../lib/validator");
-const { runAccuracyChecks, appendLedger } = require("../lib/accuracy");
+const { runAccuracyChecks, appendLedger, buildConflictNote } = require("../lib/accuracy");
 const { callDashScope } = require("../lib/dashscope");
 
 // ── 中国时间工具 ──────────────────────────────────────────────────
@@ -225,7 +225,7 @@ const STRATEGIES = [
   },
 ];
 
-async function generateDoubaoPrompts(aiReport, { refImages = [], scriptMode = null, scriptData = null, sceneType = null, platform = "douban" } = {}) {
+async function generateDoubaoPrompts(aiReport, { refImages = [], scriptMode = null, scriptData = null, sceneType = null, platform = "douban", conflictNote = "" } = {}) {
   const { date, season } = getChinaDateInfo();
   const refNote    = buildRefImagesNote(refImages);
   const scriptNote = buildScriptNote(scriptMode, scriptData);
@@ -248,7 +248,7 @@ async function generateDoubaoPrompts(aiReport, { refImages = [], scriptMode = nu
 ## 视频分析报告
 ${aiReport}
 
-${scriptNote ? `## 台词说明（优先使用，替换视频原台词）\n${scriptNote}\n` : ""}${refNote ? `## 参考图说明\n${refNote}\n` : ""}
+${conflictNote ? conflictNote + "\n" : ""}${scriptNote ? `## 台词说明（优先使用，替换视频原台词）\n${scriptNote}\n` : ""}${refNote ? `## 参考图说明\n${refNote}\n` : ""}
 ## ★ 提示词撰写核心方法论（所有版本必须遵守，这是写好豆包提示词的关键）
 
 ### 1. 骨架来自报告的【动作与道具时序】段，不是【第一帧构图】段
@@ -396,9 +396,12 @@ async function run(taskId, onProgress = () => {}) {
     let doubaoPromptsJson = null;
     if (task.task_type !== "comparison" && (task.platform || "douban") === "douban") {
       onProgress("正在并行生成3版豆包提示词…");
+      const conflictNote = buildConflictNote(accuracy);
+      if (conflictNote) onProgress("提示词生成将规避存疑字段（不硬停，标注处理）…");
       doubaoPromptsJson = await generateDoubaoPrompts(aiReport, {
         refImages, scriptMode, scriptData,
         sceneType, platform: task.platform || "douban",
+        conflictNote,
       });
       doubaoPrompt = doubaoPromptsJson[1]?.text || doubaoPromptsJson[0]?.text || ""; // 默认展示空间构图版
       onProgress("3版豆包提示词已生成 ✓");

@@ -368,6 +368,15 @@
               <span class="shrink-0 font-mono opacity-70">{{ LAYER_LABEL[f.layer] || f.layer }}</span>
               <span>{{ f.msg }}</span>
             </div>
+            <!-- 下游保护提示：冲突字段已在提示词生成时被规避 -->
+            <div
+              v-if="accuracy.conflictFields?.length"
+              class="rounded-md border border-sky-500/30 bg-sky-500/8 px-3 py-2 text-xs text-sky-400"
+            >
+              🛡 已自动规避：生成豆包提示词时跳过了
+              {{ accuracy.conflictFields.map(f => f.label).join('、') }}
+              （矛盾字段未写死进提示词，避免错误流入生成）
+            </div>
             <div class="pt-1">
               <button
                 class="flex items-center gap-1.5 rounded-md border border-primary/30 bg-primary/5 px-3 py-1.5 text-xs text-primary transition-colors hover:bg-primary/15"

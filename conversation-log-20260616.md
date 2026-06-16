@@ -54,13 +54,48 @@
 
 后端已重启加载新代码（:3000），前端 HMR 已更新（:5173）。
 
-## ⏳ 待用户：装 ffmpeg 解锁 L1+L3
-当前 L1（地面真值）/L3（首帧接地）因机器无 ffmpeg 优雅 skip，L2（定向复核，内容校验主力）已生效。
-装 ffmpeg 后 L1/L3 自动启用，无需改代码：`winget install Gyan.FFmpeg`，装完重开窗口、重启后端。
+## ✅ ffmpeg 已装（L1+L3 全部生效）
+机器无 winget/choco，改为直接下载 gyan.dev 静态构建 ffmpeg 8.1.1 → 解压到 `C:\ffmpeg` → 加用户 PATH。
+**重要**：会话内后端进程需用 `export PATH="/c/nvm4w/nodejs:/c/ffmpeg/bin:$PATH"` 启动才能用 ffmpeg（PATH 过期）；新开 PowerShell 窗口则已自动含 ffmpeg。
+detectScenes 阈值从 0.4 调到 0.5（减少口播快剪误报）。
+e2e 实测三层全跑：L1 检出"一镜到底 vs 4处硬切"，L2 抓出移动方向矛盾(verdict=fail)，L3 执行5项构图核对。
 关开关：环境变量 ACCURACY_RECHECK=false / ACCURACY_FIRST_FRAME=false / ACCURACY_GROUND_TRUTH=false / ACCURACY_LEDGER=false
 
-## 未提交 git（用户未要求 commit）
-本次所有改动 + setup.ps1 BOM 修复，均未 commit。
+## ✅ ESLint 已修
+原 lint 脚本因无 eslint.config.js 完全跑不起来（eslint 9 需 flat config）。
+新增 server/eslint.config.js（CommonJS）+ client/eslint.config.js（Vue3 flat）。
+两端 `npm run lint` 现在 exit 0 全绿。修掉真实问题：dashscope URL globals、video-analyzer 未用 platform 参数、Button.vue 未用 props、TaskView 未用 e。
+
+## ✅ 已提交并推送 GitHub（第一轮）
+commit a455c75（14 files, +884/-8）→ origin/main 推送成功。
+git identity 配为仓库既有作者 lanmoxia <mrli2902933052@gmail.com>（仓库级，非全局）。
+accuracy-issues.md 已加 .gitignore（运行时台账，不进库）。.claude/settings.local.json 故意不提交（本机权限设置）。
+
+---
+
+## 第二轮：采纳外部 AI 评审，L2 升级为盲审（已完成）
+外部 AI 指出 L2 原实现的锚定缺陷（看着报告自审=心理安慰）。采纳3点，过度设计部分（6-Agent/多模型/抽8帧/JSON取代报告/硬停）拒绝。
+
+### 改动（全部在 accuracy.js + analysis.service.js）
+1. **L2 改盲审+字段级比对**：
+   - 定义 FATAL_FIELDS（10个致命字段，带枚举值可程序比对）：char_count/is_one_take/shot_count/subject_position/entry_direction/movement_direction/voice_type/speaker_count/book_face/camera_motion
+   - extractFactSheet(report)：纯文本调用，从报告抽10字段（只读报告不动）
+   - blindVerify(video)：只看视频答封闭题，**不给报告**（破锚定）
+   - 两路 Promise.all 并行 → normVal 归一化 → 逐字段 diff：两边都确定且不等=error；一边不确定=warn；都不确定=info；相等=ok
+2. **致命字段事实表**：散文报告保持主产物不变，额外抽事实表专供校验（拒绝"JSON取代报告"）
+3. **堵下游泄漏**：buildConflictNote(accuracy) 把 error 级冲突字段渲染成警示段，注入 generateDoubaoPrompts 的 commonContext。按 CLAUDE.md 批处理原则**不硬停、强标注**（拒绝外部AI的"禁止生成"）。run() 传 conflictNote；regenerate 路径默认""不受影响。
+   - accuracy 顶层新增 conflictFields（error级字段+两边取值）
+4. 前端：准确性面板加"🛡已自动规避"提示，显示提示词跳过了哪些冲突字段。
+
+### 实测对比（同一视频 2段）
+- 旧版(看报告自审)：6维全 OK
+- 新版(盲审)：抓出**镜头数 2vs3、人物入画方向 already_present vs from_right** 两处真矛盾
+- e2e：verdict=fail，conflictNote 注入，生成的提示词确实没写入画方向（规避生效，未硬停照常出词）
+- 证明外部AI的核心批评正确：盲审显著强于自审。
+
+### detectScenes 阈值 0.4→0.5（减口播快剪误报）
+
+待提交：第二轮全部改动。
 
 ### accuracy 数据结构（前端用）
 report.accuracyJson = {

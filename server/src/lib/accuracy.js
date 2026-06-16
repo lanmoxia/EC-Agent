@@ -233,22 +233,96 @@ function extractJson(text) {
   }
 }
 
-// ── L2 定向复核 ───────────────────────────────────────────────────
-
-// 最致命的维度清单（按用户实测易错项排序）
-const RECHECK_DIMS = [
-  { key: "direction",  label: "角色移动方向（左右+走向）" },
-  { key: "char_count", label: "画面中人物数量" },
-  { key: "voice",      label: "说话人画内/画外分布" },
-  { key: "main_color", label: "主色块颜色及画面位置" },
-  { key: "book_face",  label: "书的封面朝向（朝镜头/背对/侧）" },
-  { key: "shots",      label: "镜头数 / 是否一镜到底 / 有无硬切" },
-];
+// ── L2 定向复核（盲审 + 字段级比对） ─────────────────────────────
 
 /**
- * L2：再独立看一遍视频，只核对最致命的几个维度，与报告比对。
- * 让模型同时看「视频 + 报告原文」，对每个维度输出 {reportSays, videoShows, match}，
- * 由能看视频的模型自己做对齐——避免脆弱的报告文本解析。
+ * 10 个最致命字段，每个带枚举值，使两次独立判断可被程序比对。
+ * type: 'int' 整数比对；'enum' 枚举字符串比对。
+ * uncertain/unclear 一律视为「不确定」，不判矛盾只标存疑。
+ */
+const FATAL_FIELDS = [
+  { key: "char_count",         label: "画面人物数量",       type: "int" },
+  { key: "is_one_take",        label: "是否一镜到底",       type: "enum", enums: ["yes", "no", "uncertain"] },
+  { key: "shot_count",         label: "镜头数量",           type: "int" },
+  { key: "subject_position",   label: "主体水平位置",       type: "enum", enums: ["left", "center", "right", "unclear"] },
+  { key: "entry_direction",    label: "人物入画方向",       type: "enum", enums: ["from_left", "from_right", "from_top", "from_bottom", "already_present", "no_movement", "uncertain"] },
+  { key: "movement_direction", label: "主体移动方向",       type: "enum", enums: ["left_to_right", "right_to_left", "near_to_far", "far_to_near", "static", "uncertain"] },
+  { key: "voice_type",         label: "声源画内/画外",      type: "enum", enums: ["onscreen", "offscreen", "both", "none", "uncertain"] },
+  { key: "speaker_count",      label: "说话人数量",         type: "int" },
+  { key: "book_face",          label: "书封面朝向",         type: "enum", enums: ["toward_camera", "away_from_camera", "toward_subject", "side", "no_book", "uncertain"] },
+  { key: "camera_motion",      label: "主镜头运动",         type: "enum", enums: ["static", "push_in", "pull_back", "pan_left", "pan_right", "tilt", "handheld_follow", "mixed", "uncertain"] },
+];
+
+const UNCERTAIN_VALS = new Set(["uncertain", "unclear", "unknown", "", null, undefined]);
+
+/** 渲染字段问卷（两个 prompt 共用，保证抽取与盲审问的是同一组字段/同一组枚举） */
+function buildFieldSpec() {
+  return FATAL_FIELDS.map((f, i) => {
+    if (f.type === "int") {
+      return `${i + 1}. ${f.key}（${f.label}）：填整数；数不清填 "uncertain"`;
+    }
+    return `${i + 1}. ${f.key}（${f.label}）：从 [${f.enums.join(", ")}] 选一个`;
+  }).join("\n");
+}
+
+/** 归一化字段值用于比对 */
+function normVal(field, v) {
+  if (v === null || v === undefined) return "uncertain";
+  let s = String(v).trim().toLowerCase();
+  if (field.type === "int") {
+    if (UNCERTAIN_VALS.has(s) || s === "uncertain") return "uncertain";
+    const n = parseInt(s, 10);
+    return isFinite(n) ? String(n) : "uncertain";
+  }
+  if (UNCERTAIN_VALS.has(s)) return "uncertain";
+  // 容错：枚举不在表里则归为 uncertain（避免拼写差异误判矛盾）
+  return field.enums.includes(s) ? s : "uncertain";
+}
+
+/** ① 从报告散文抽 10 字段事实表（文本调用，便宜）。报告不动，只读。 */
+async function extractFactSheet(report, { onProgress = () => {} } = {}) {
+  const prompt = `下面是一份视频分析报告。请只从报告内容中**抽取**以下字段的取值（不要自己推测视频，只如实反映报告写了什么）。报告没提到的字段填 "uncertain"。
+
+${buildFieldSpec()}
+
+严格只输出 JSON，键为上面的英文 key：
+{ "char_count": "...", "is_one_take": "...", "shot_count": "...", "subject_position": "...", "entry_direction": "...", "movement_direction": "...", "voice_type": "...", "speaker_count": "...", "book_face": "...", "camera_motion": "..." }
+
+—— 报告全文 ——
+${report}`;
+
+  onProgress("抽取报告致命字段事实表…");
+  const raw = await callDashScope([{ type: "text", text: prompt }], { maxTokens: 500 });
+  return extractJson(raw);
+}
+
+/** ② 盲审：只看视频答封闭题，**不给报告**，避免锚定偏差。 */
+async function blindVerify(videoUrl, { onProgress = () => {} } = {}) {
+  const prompt = `你是独立的视频审核员。请**只观看这段视频**，回答以下字段。不要参考任何外部描述，凭你看到的画面独立判断。看不清的字段填 "uncertain"，不要猜。
+
+${buildFieldSpec()}
+
+判断要点：
+- 移动方向/入画方向：以画面 2D 坐标为准（画面左边=left，远处=画面上方）。这是最易错项，务必看仔细。
+- 一镜到底：注意「书闭合→翻开」「人物姿态瞬间不连贯」这类瞬间硬切，有则填 no。
+- 声源：分清画内人物在说话（嘴动）还是画外配音。
+
+严格只输出 JSON，键为上面的英文 key：
+{ "char_count": "...", "is_one_take": "...", "shot_count": "...", "subject_position": "...", "entry_direction": "...", "movement_direction": "...", "voice_type": "...", "speaker_count": "...", "book_face": "...", "camera_motion": "..." }`;
+
+  onProgress("定向复核：盲审视频（不看报告）…");
+  const raw = await callDashScope([
+    { type: "video_url", video_url: { url: videoUrl } },
+    { type: "text", text: prompt },
+  ], { maxTokens: 600 });
+  return extractJson(raw);
+}
+
+/**
+ * L2：盲审 + 字段级比对。
+ * report→事实表（文本）与 video→盲审（封闭题）两路**独立**产出，
+ * 程序逐字段 diff：两边都确定且不等→矛盾(error)；一边不确定→存疑(warn)；相等→一致(ok)。
+ * 返回 fields 数组（含两边取值）供下游「堵泄漏」判断。
  */
 async function layerRecheck(videoPath, report, { onProgress = () => {} } = {}) {
   const findings = [];
@@ -259,78 +333,54 @@ async function layerRecheck(videoPath, report, { onProgress = () => {} } = {}) {
     return { skipped: true, reason: `无法读取视频：${e.message}`, findings };
   }
 
-  const dimList = RECHECK_DIMS.map((d, i) => `${i + 1}. ${d.key} — ${d.label}`).join("\n");
-
-  const prompt = `你是严格的「视频分析报告审核员」。下面给你一段视频和一份已经写好的分析报告。
-你的任务：只针对以下 ${RECHECK_DIMS.length} 个**最容易出错的关键维度**，重新观看视频核对报告是否准确。不要复述报告，只做核对。
-
-需要核对的维度（用括号里的英文 key 作为字段名）：
-${dimList}
-
-核对要求：
-- 移动方向：必须以画面 2D 坐标判断，写清「从画面哪边到哪边」（如 左→右 / 右→左 / 基本不动）。这是最易错项，务必仔细。
-- 人物数量：数清同框出现过的真人个数。
-- 画内/画外：分别说明各有几句、谁在画内谁在画外。
-- 主色块：占画面面积最大的颜色及其大致象限。
-- 书封面朝向：朝镜头 / 背对镜头 / 侧向 / 无书。
-- 镜头数：是否真的一镜到底；有无「书闭合→翻开」之类的瞬间硬切。
-
-针对每个维度，对比「报告怎么写的」与「你重新看视频得到的结论」，输出 match：
-- "ok"：报告与视频一致
-- "mismatch"：报告与视频矛盾（这是最重要的发现）
-- "uncertain"：看不清/无法判断
-
-严格只输出如下 JSON，不要任何额外文字：
-{
-  "dims": [
-    { "key": "direction", "reportSays": "报告里的说法（简短）", "videoShows": "你看到的实际情况（简短）", "match": "ok|mismatch|uncertain" }
-  ]
-}
-
-—— 待审报告全文 ——
-${report}`;
-
-  onProgress("定向复核：再看一遍视频核对关键维度…");
-  let raw;
+  let sheet, verify;
   try {
-    raw = await callDashScope([
-      { type: "video_url", video_url: { url: videoUrl } },
-      { type: "text", text: prompt },
-    ], { maxTokens: 1200 });
+    // 两路独立调用：事实表抽取（文本）+ 盲审（视频）。并行省时。
+    [sheet, verify] = await Promise.all([
+      extractFactSheet(report, { onProgress }),
+      blindVerify(videoUrl, { onProgress }),
+    ]);
   } catch (e) {
     return { skipped: true, reason: `复核调用失败：${e.message}`, findings };
   }
 
-  const parsed = extractJson(raw);
-  if (!parsed || !Array.isArray(parsed.dims)) {
-    return { skipped: true, reason: "复核返回无法解析为 JSON", raw, findings };
+  if (!sheet && !verify) {
+    return { skipped: true, reason: "事实表与盲审均无法解析为 JSON", findings };
+  }
+  if (!verify) {
+    return { skipped: true, reason: "盲审返回无法解析为 JSON", findings };
+  }
+  if (!sheet) {
+    return { skipped: true, reason: "报告事实表返回无法解析为 JSON", findings };
   }
 
-  const labelOf = Object.fromEntries(RECHECK_DIMS.map(d => [d.key, d.label]));
-  for (const d of parsed.dims) {
-    const label = labelOf[d.key] || d.key;
-    if (d.match === "mismatch") {
-      findings.push({
-        layer: "L2", level: "error", field: label,
-        claim: d.reportSays || "", truth: d.videoShows || "",
-        msg: `【${label}】报告：${d.reportSays || "?"} ✗ 复核：${d.videoShows || "?"}`,
-      });
-    } else if (d.match === "uncertain") {
-      findings.push({
-        layer: "L2", level: "warn", field: label,
-        claim: d.reportSays || "", truth: d.videoShows || "",
-        msg: `【${label}】复核无法确认（报告：${d.reportSays || "?"}），建议人工看一眼`,
-      });
+  const fields = [];
+  for (const f of FATAL_FIELDS) {
+    const rep = normVal(f, sheet[f.key]);
+    const vid = normVal(f, verify[f.key]);
+    const repUnc = rep === "uncertain";
+    const vidUnc = vid === "uncertain";
+
+    let level, msg;
+    if (!repUnc && !vidUnc && rep !== vid) {
+      level = "error";
+      msg = `【${f.label}】报告：${rep} ✗ 盲审：${vid}`;
+    } else if (repUnc && vidUnc) {
+      level = "info";
+      msg = `【${f.label}】两边均未明确`;
+    } else if (repUnc || vidUnc) {
+      level = "warn";
+      msg = `【${f.label}】单边不确定（报告：${rep} / 盲审：${vid}），建议人工看一眼`;
     } else {
-      findings.push({
-        layer: "L2", level: "ok", field: label,
-        claim: d.reportSays || "", truth: d.videoShows || "",
-        msg: `【${label}】一致`,
-      });
+      level = "ok";
+      msg = `【${f.label}】一致（${vid}）`;
     }
+
+    findings.push({ layer: "L2", level, field: f.label, key: f.key, claim: rep, truth: vid, msg });
+    fields.push({ key: f.key, label: f.label, report: rep, video: vid, level });
   }
 
-  return { raw, dims: parsed.dims, findings };
+  return { sheet, verify, fields, findings };
 }
 
 // ── L3 首帧图像接地 ───────────────────────────────────────────────
@@ -497,9 +547,14 @@ async function runAccuracyChecks(videoPath, report, { onProgress = () => {} } = 
     : warnings.length > 0 ? "review"
     : "pass";
 
+  // 冲突字段（error 级，带两边取值）——供下游「堵泄漏」给提示词生成用
+  const conflictFields = (layers.recheck && layers.recheck.fields || [])
+    .filter(f => f.level === "error");
+
   return {
     findings: allFindings,
     errors, warnings,
+    conflictFields,
     summary: {
       errors: errors.length,
       warnings: warnings.length,
@@ -510,6 +565,29 @@ async function runAccuracyChecks(videoPath, report, { onProgress = () => {} } = 
     layers,
     meta: (layers.groundTruth && layers.groundTruth.meta) || null,
   };
+}
+
+/**
+ * 「堵下游泄漏」：把冲突/存疑字段渲染成给提示词生成模型的警示段。
+ * 按 CLAUDE.md 批处理原则——不硬停，强标注：提醒生成模型这些字段不可靠，
+ * 遇到时优先保守/中性处理，不要把错误描述写进提示词。
+ * @returns {string} 注入 prompt 的文本（无冲突返回 ""）
+ */
+function buildConflictNote(accuracy) {
+  if (!accuracy) return "";
+  const conflicts = accuracy.conflictFields || [];
+  const warns = (accuracy.warnings || []).filter(w => w.layer === "L2");
+  if (!conflicts.length && !warns.length) return "";
+
+  const lines = ["## ⚠ 准确性存疑字段（这些字段报告与独立盲审不一致，不可信，写提示词时务必谨慎）"];
+  for (const c of conflicts) {
+    lines.push(`- ${c.label}：报告说「${c.report}」，盲审看到「${c.video}」——两者矛盾，**不要把任一方写死进提示词**，改用中性/保守描述或省略该细节。`);
+  }
+  for (const w of warns) {
+    lines.push(`- ${w.field}：存疑（${w.msg}）——谨慎处理。`);
+  }
+  lines.push("处理原则：宁可少写一个不确定的细节，也不要写错方向/朝向/人数等硬骨架。");
+  return lines.join("\n") + "\n";
 }
 
 // ── L4 台账：把分歧追加写入 accuracy-issues.md ────────────────────
@@ -540,8 +618,10 @@ module.exports = {
   // 共享工具（供后续层/测试复用）
   probeMeta, aspectLabel, detectScenes, extractSection,
   toVideoDataUrl, toImageDataUrl, extractJson, extractFirstFrame,
+  // 字段表 + 子步骤
+  FATAL_FIELDS, extractFactSheet, blindVerify,
   // 各层
-  layerGroundTruth, layerRecheck, layerFirstFrame, RECHECK_DIMS,
-  // 聚合 + 台账
-  runAccuracyChecks, appendLedger,
+  layerGroundTruth, layerRecheck, layerFirstFrame,
+  // 聚合 + 台账 + 堵泄漏
+  runAccuracyChecks, appendLedger, buildConflictNote,
 };
