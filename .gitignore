@@ -40,3 +40,13 @@ accuracy-issues.md
 
 # Claude 本地权限配置（每机独立，不进库）
 .claude/settings.local.json
+
+# 大型参考文档（本地阅读用，不进库）
+*.pdf
+docs/liblib-raw.txt
+
+# LibTV CLI 本地状态（凭据+项目绑定，每机独立）
+.libtv/
+
+# LibreOffice 锁文件
+.~lock.*

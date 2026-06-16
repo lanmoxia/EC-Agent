@@ -219,6 +219,44 @@ clone 后一次性配置（与 git 无关，每台机器各做一次）：
 - 离开前 → git add -A && commit && push（跟 Claude 说一声即可）
 - 永不进 git：.env / .claude/settings.local.json / node_modules / reports / accuracy-issues.md
 
+---
+
+## LibTV CLI 流程跑通（本次会话）
+
+### 背景
+上个窗口已完成：LibTV CLI 安装（C:\libtv）+ 登录账号（183****3561）+ 整理平台文档到 docs/。
+本次窗口重连后继续。
+
+### 跑通��证
+账号：非会员，约100免费积分，只做生图测试（不生视频）。
+
+**执行的完整 CLI 流程：**
+1. `libtv account info` → 登录状态正常
+2. `libtv project list` → 项目"Seedance2.0体验"（uuid: f982c7df...），上次已建好
+3. `libtv project use <uuid>` → 绑定项目到当前目录（写 .libtv/project.json）
+4. `libtv node list` → 上次已建2个节点（图片上传节点 + 视频生成节点，视频prompt为空未跑）
+5. `libtv node create "测试生图" -t image` → 新建图片节点
+6. `libtv node "测试生图" --prompt "..." -s model="Lib Navo 2" -s ratio="9:16" --run` → 生图
+7. progress=100%，拿到图片 URL → **流程完整跑通**
+
+**生成的图片**：`https://libtv-res.liblib.art/sd-gen-save-img/.../708cd8ffe8354f32850b8ebc43db9be9.png`（1536×2752，9:16）
+
+### 结论
+LibTV CLI 完整流程（登录→建项目→建节点→设参数→跑→拿结果）已验证可操作。
+视频生成（Seedance 2.0 / 可灵）需积分，暂未跑；生图逻辑一致，可类推。
+
+### 新增 gitignore 规则
+- `.libtv/`（CLI本地状态：凭据+项目绑定，不进库）
+- `.~lock.*`（LibreOffice锁文件）
+
+### 文件变动
+- docs/liblib-tv-overview.md（新，LibTV平台概览）
+- docs/libtv-cli-commands.md（新，CLI完整命令手册）
+- .gitignore（+.libtv/ + .~lock.*）
+- .claude/settings.json（本地权限配置更新）
+
+---
+
 ## 当前提交基线
 - c363e34 修复忽略漏洞（gitignore + 取消追踪 settings.local.json）
 - f529ff8 SessionStart 钩子（自动 git pull）
