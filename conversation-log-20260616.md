@@ -188,37 +188,31 @@ e2e实测：12字段全跑通；speak_order 当场抓真矛盾（报告single_on
 
 ---
 
-## ⚠⚠ 回家/换机第一次必读（鸡生蛋死锁破局）
+## ⚠ 回家/换机第一次：重新 clone（最干净，推荐）
 
-**问题**：commit c363e34 修了"settings.local.json 脏导致钩子永远跳过 pull"的漏洞。
-但**还没拿到 c363e34 的机器（家里那台首次打开）仍是旧机制**：
-旧钩子看到 settings.local.json 是 M（脏）→ 跳过 pull → 永远拿不到修复 = 死锁。
+**背景**：曾有"settings.local.json 脏导致旧钩子永远跳过 pull"的死锁。已用 c363e34 修复
+（gitignore + 取消追踪）。**家里那台若还是旧本地副本，直接 pull 可能卡在旧机制里。**
 
-**破局（回家第一次，让家里 Claude 执行其一）：**
+**最佳解法 = 删掉家里旧副本，重新 git clone**：
+- 全新 clone 自带最新代码（含忽略修复），settings.local.json 从一开始就不被追踪 → 死锁根本不存在
+- 比"原地破局脚本"干净得多，无需理解死锁（之前写的 unstick 脚本已删除，多余）
 
-方式A（推荐，手动一行）——直接强制 pull 一次，绕过钩子：
 ```bash
-cd /e/EC-Agent
-git stash -u 2>/dev/null || git checkout -- .claude/settings.local.json
-git pull --ff-only
+# 家里：删旧副本，重新 clone
+rm -rf /e/EC-Agent           # 或资源管理器删掉
+git clone git@github.com:lanmoxia/EC-Agent.git /e/EC-Agent
 ```
-拉到后就有了新机制 + unstick 脚本，之后正常。
 
-方式B（拉到脚本后）：`bash .claude/hooks/unstick-and-pull.sh`（幂等，已修好的机器跑也安全）
+clone 后一次性配置（与 git 无关，每台机器各做一次）：
+- `server/.env` 填 API key（不进 git，需手动粘贴）
+- 装依赖：`setup.ps1` 或 `cd server && npm install` + `cd client && npm install`
+- ffmpeg：装在 `C:\ffmpeg`，**不在项目里，删项目不影响**，已装过就不用再装
 
-**验证三件套**（都满足才算破局成功）：
-- `git check-ignore .claude/settings.local.json` → 输出文件名
-- `git ls-files .claude/settings.local.json` → 空
-- `git status -sb` → 无 `M .claude/settings.local.json`
-
-家里那台还要：配 server/.env（API key 不进 git）+ 装依赖（setup.ps1 或 npm install）+ 装 ffmpeg。
-
-## 永久工作流（破局后）
+## 永久工作流
 - 打开新 Claude 窗口 → SessionStart 钩子自动 git pull
 - 离开前 → git add -A && commit && push（跟 Claude 说一声即可）
 - 永不进 git：.env / .claude/settings.local.json / node_modules / reports / accuracy-issues.md
 
 ## 当前提交基线
-- c363e34 修复忽略漏洞
-- f529ff8 SessionStart 钩子
-- （本轮）+ unstick-and-pull.sh 破局脚本
+- c363e34 修复忽略漏洞（gitignore + 取消追踪 settings.local.json）
+- f529ff8 SessionStart 钩子（自动 git pull）
