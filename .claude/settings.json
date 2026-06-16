@@ -1,36 +1,12 @@
 {
   "permissions": {
     "allow": [
-      "PowerShell($proc = Get-NetTCPConnection -LocalPort 3000 -ErrorAction SilentlyContinue | Where-Object State -eq 'Listen' | Select-Object -First 1; if \\($proc\\) { $procId = $proc.OwningProcess; Stop-Process -Id $procId -Force; \"Killed PID $procId\" } else { \"Port 3000 free\" })",
-      "PowerShell(Invoke-WebRequest -Uri \"http://localhost:3000\" -UseBasicParsing -TimeoutSec 5)",
-      "PowerShell(Invoke-WebRequest -Uri \"http://localhost:3000/api/tasks\" -UseBasicParsing -TimeoutSec 5)",
-      "PowerShell(Start-Process powershell -ArgumentList '-NoExit', '-Command', 'cd e:\\\\gs615\\\\server; node app.js')",
-      "Bash(npm install *)",
-      "Bash(ffmpeg -version)",
-      "Bash(node app.js)",
-      "Bash(echo \"backend pid: $!\")",
-      "Bash(npm run *)",
-      "Bash(echo \"frontend pid: $!\")",
-      "Bash(where pdftotext *)",
-      "Bash(where pdftoppm *)",
-      "Bash(python -c \"import pdfplumber; print\\('pdfplumber ok'\\)\")",
-      "Bash(python3 -c \"import pdfplumber; print\\('pdfplumber ok'\\)\")",
-      "Bash(pdftotext \"E:/EC-Agent/LibTV使用指南.pdf\" \"E:/EC-Agent/docs/liblib-raw.txt\")",
-      "WebFetch(domain:www.liblib.tv)",
-      "Bash(curl -fsSL \"https://liblibai-web-static.liblib.cloud/cli/latest/libtv-cli-skill.zip\" -o /tmp/libtv-skill.zip)",
-      "Bash(curl -fsSL https://liblibai-web-static.liblib.cloud/cli/latest/install-libtv-cli.sh)",
-      "Bash(bash)",
-      "Bash(curl -fsSL \"https://liblibai-web-static.liblib.cloud/cli/latest/manifest.json\")",
-      "WebFetch(domain:resonate.feishu.cn)",
-      "Bash(curl -fsSL \"https://liblibai-web-static.liblib.cloud/cli/1.0.2/libtv-windows-amd64.zip\" -o /tmp/libtv-win.zip)",
-      "Bash(mkdir -p /c/libtv)",
-      "Read(//c//**)",
-      "Bash(unzip -o /tmp/libtv-win.zip)",
-      "Bash(powershell -Command '[System.Environment]::SetEnvironmentVariable\\('\\\\''PATH'\\\\'', $env:PATH + '\\\\'';C:\\\\libtv\\\\libtv-win-x64'\\\\'', '\\\\''User'\\\\''\\)')",
-      "Bash(Test-Path \"e:\\\\EC-Agent\\\\node_modules\")",
-      "Bash(Test-Path \"e:\\\\EC-Agent\\\\server\\\\node_modules\")",
-      "Read(//Users/dev/workspace-9f9531d7/**)",
-      "Bash(git add *)"
+      "Bash(*)",
+      "Read(*)",
+      "Write(*)",
+      "Edit(*)",
+      "WebFetch(*)",
+      "PowerShell(*)"
     ]
   },
   "hooks": {
