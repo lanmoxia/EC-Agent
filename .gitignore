@@ -34,3 +34,6 @@ memory-backup/
 # npm 日志
 npm-debug.log*
 *.log
+
+# 准确性校验运行时台账
+accuracy-issues.md

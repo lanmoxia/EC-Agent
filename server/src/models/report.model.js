@@ -4,15 +4,17 @@ const db = require("./db");
 const { nanoid } = require("nanoid");
 
 const ReportModel = {
-  create({ taskId, aiReport, humanSummary, doubaoPrompt, doubaoPromptsJson, validationJson }) {
+  create({ taskId, aiReport, humanSummary, doubaoPrompt, doubaoPromptsJson, validationJson, accuracyJson }) {
     const id = nanoid();
     const now = Date.now();
     db.prepare(`
-      INSERT INTO reports (id, task_id, ai_report, human_summary, doubao_prompt, doubao_prompts_json, validation_json, created_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO reports (id, task_id, ai_report, human_summary, doubao_prompt, doubao_prompts_json, validation_json, accuracy_json, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(id, taskId, aiReport, humanSummary, doubaoPrompt,
       doubaoPromptsJson ? JSON.stringify(doubaoPromptsJson) : null,
-      validationJson, now);
+      validationJson,
+      accuracyJson ? (typeof accuracyJson === "string" ? accuracyJson : JSON.stringify(accuracyJson)) : null,
+      now);
     return this.findById(id);
   },
 
@@ -69,6 +71,7 @@ const ReportModel = {
       ...row,
       validationJson:    row.validation_json     ? JSON.parse(row.validation_json)     : null,
       doubaoPromptsJson: row.doubao_prompts_json ? JSON.parse(row.doubao_prompts_json) : null,
+      accuracyJson:      row.accuracy_json       ? JSON.parse(row.accuracy_json)       : null,
     };
   },
 };

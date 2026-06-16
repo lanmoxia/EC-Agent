@@ -14,7 +14,7 @@ import { cva } from "class-variance-authority";
 
 defineOptions({ inheritAttrs: false });
 
-const props = defineProps({
+defineProps({
   variant: { type: String, default: "default" },
   size: { type: String, default: "default" },
   as: { type: [String, Object], default: "button" },

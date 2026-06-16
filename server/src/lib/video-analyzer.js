@@ -273,7 +273,6 @@ function buildAnalysisPrompt() {
  */
 async function analyzeVideo(videoPath, opts = {}) {
   const {
-    platform = "douban",
     framesMode = false,
     frameCount = 0,
     onProgress = () => {},

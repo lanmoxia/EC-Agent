@@ -100,6 +100,7 @@ for (const col of [
   "ALTER TABLE reports ADD COLUMN doubao_prompts_json TEXT",
   "ALTER TABLE tasks ADD COLUMN scene_type TEXT",
   "ALTER TABLE cases ADD COLUMN status TEXT DEFAULT 'active'",
+  "ALTER TABLE reports ADD COLUMN accuracy_json TEXT",
 ]) {
   try { db.exec(col); } catch {}
 }

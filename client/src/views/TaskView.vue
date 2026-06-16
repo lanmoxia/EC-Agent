@@ -196,7 +196,7 @@ function connectComparison(cTaskId) {
     try { comparisonLog.value.push(JSON.parse(e.data).message); } catch {}
   });
 
-  comparisonSource.addEventListener("done", async (e) => {
+  comparisonSource.addEventListener("done", async () => {
     comparisonSource.close();
     comparisonSource = null;
     comparisonTask.value = { ...comparisonTask.value, status: "done" };

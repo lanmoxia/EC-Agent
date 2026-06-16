@@ -8,6 +8,7 @@ const ReportModel = require("../models/report.model");
 const CaseModel  = require("../models/case.model");
 const { analyzeVideo } = require("../lib/video-analyzer");
 const { validateTimeline } = require("../lib/validator");
+const { runAccuracyChecks, appendLedger } = require("../lib/accuracy");
 const { callDashScope } = require("../lib/dashscope");
 
 // ── 中国时间工具 ──────────────────────────────────────────────────
@@ -369,6 +370,24 @@ async function run(taskId, onProgress = () => {}) {
       onProgress("时间轴校验通过 ✓");
     }
 
+    // ②.5 准确性校验（内容层：L1地面真值 + L2定向复核 + L3首帧接地）
+    onProgress("执行准确性校验（内容层）…");
+    let accuracy = null;
+    try {
+      accuracy = await runAccuracyChecks(task.video_path, aiReport, { onProgress });
+      const s = accuracy.summary;
+      if (s.errors > 0) {
+        onProgress(`❌ 准确性校验发现 ${s.errors} 处矛盾、${s.warnings} 处存疑，已标红`);
+      } else if (s.warnings > 0) {
+        onProgress(`⚠ 准确性校验：${s.warnings} 处需人工确认`);
+      } else {
+        onProgress("准确性校验通过 ✓");
+      }
+      appendLedger(task.video_name, accuracy);
+    } catch (e) {
+      onProgress(`准确性校验跳过（${e.message}）`);
+    }
+
     // ③ 人看版摘要
     const humanSummary = extractHumanSummary(aiReport);
 
@@ -398,6 +417,7 @@ async function run(taskId, onProgress = () => {}) {
       doubaoPrompt,
       doubaoPromptsJson,
       validationJson: JSON.stringify(validation),
+      accuracyJson: accuracy ? JSON.stringify(accuracy) : null,
     });
 
     TaskModel.updateStatus(taskId, "done");

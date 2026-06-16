@@ -331,6 +331,100 @@
       </template>
     </div>
 
+    <!-- ── 准确性校验（内容层） ────────────────────────────────── -->
+    <div v-if="activeTab === 'accuracy'" class="mt-4 animate-fade-in">
+      <div class="rounded-xl border border-border bg-card p-6 space-y-4">
+        <div class="flex items-center justify-between gap-3 flex-wrap">
+          <h3 class="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+            准确性校验（内容层）
+          </h3>
+          <Badge :variant="accuracyVerdict.variant">{{ accuracyVerdict.label }}</Badge>
+        </div>
+
+        <template v-if="accuracy">
+          <!-- 汇总条 -->
+          <div class="flex flex-wrap items-center gap-2 text-xs">
+            <span class="rounded-full bg-destructive/15 px-2.5 py-0.5 font-medium text-destructive">矛盾 {{ accuracy.summary.errors }}</span>
+            <span class="rounded-full bg-amber-500/15 px-2.5 py-0.5 font-medium text-amber-400">存疑 {{ accuracy.summary.warnings }}</span>
+            <span class="rounded-full bg-sky-500/15 px-2.5 py-0.5 font-medium text-sky-400">提示 {{ accuracy.summary.infos }}</span>
+            <span class="rounded-full bg-emerald-500/15 px-2.5 py-0.5 font-medium text-emerald-400">一致 {{ accuracy.summary.oks }}</span>
+            <span v-if="accuracy.meta?.duration" class="text-muted-foreground">
+              · 实测 {{ accuracy.meta.duration.toFixed(1) }}s
+              <template v-if="accuracy.meta.width">/ {{ accuracy.meta.width }}×{{ accuracy.meta.height }}</template>
+              <template v-if="accuracy.meta.fps">/ {{ accuracy.meta.fps }}fps</template>
+            </span>
+          </div>
+
+          <!-- 矛盾 + 存疑（标红/标黄，优先展示） -->
+          <div v-if="accuracy.errors?.length || accuracy.warnings?.length" class="space-y-1.5">
+            <div
+              v-for="(f, i) in [...accuracy.errors, ...accuracy.warnings]"
+              :key="'flag' + i"
+              class="flex items-start gap-2 rounded-md px-3 py-2 text-xs"
+              :class="f.level === 'error'
+                ? 'bg-destructive/10 text-destructive'
+                : 'bg-amber-500/10 text-amber-400'"
+            >
+              <span class="shrink-0 font-mono opacity-70">{{ LAYER_LABEL[f.layer] || f.layer }}</span>
+              <span>{{ f.msg }}</span>
+            </div>
+            <div class="pt-1">
+              <button
+                class="flex items-center gap-1.5 rounded-md border border-primary/30 bg-primary/5 px-3 py-1.5 text-xs text-primary transition-colors hover:bg-primary/15"
+                @click="goEditFromAccuracy"
+              >
+                <Pencil class="h-3.5 w-3.5" />
+                手动修正 AI 报告
+              </button>
+            </div>
+          </div>
+
+          <p v-else class="text-sm text-emerald-400">所有核对维度均与视频一致，未发现矛盾。</p>
+
+          <!-- 全部一致维度（折叠展示，便于确认覆盖范围） -->
+          <details v-if="accuracy.summary.oks > 0" class="text-xs">
+            <summary class="cursor-pointer text-muted-foreground hover:text-foreground">
+              查看已核对一致的 {{ accuracy.summary.oks }} 项
+            </summary>
+            <div class="mt-2 space-y-1">
+              <div
+                v-for="(f, i) in accuracy.findings.filter(x => x.level === 'ok')"
+                :key="'ok' + i"
+                class="flex items-start gap-2 rounded-md bg-muted/40 px-3 py-1.5 text-emerald-400/80"
+              >
+                <span class="shrink-0 font-mono opacity-60">{{ LAYER_LABEL[f.layer] || f.layer }}</span>
+                <span>{{ f.msg }}</span>
+              </div>
+            </div>
+          </details>
+
+          <!-- 各层状态（含被跳过的层及原因） -->
+          <div class="border-t border-border/50 pt-3 space-y-1.5">
+            <p class="text-xs font-medium text-muted-foreground">各层状态</p>
+            <div
+              v-for="key in ['groundTruth', 'recheck', 'firstFrame']"
+              :key="key"
+              class="flex items-start gap-2 text-xs text-muted-foreground"
+            >
+              <span class="shrink-0 font-mono">
+                {{ key === 'groundTruth' ? 'L1' : key === 'recheck' ? 'L2' : 'L3' }}
+              </span>
+              <span v-if="accuracy.layers?.[key]?.skipped" class="text-muted-foreground/60">
+                跳过：{{ accuracy.layers[key].reason }}
+              </span>
+              <span v-else class="text-emerald-400/80">
+                已执行（{{ accuracy.layers?.[key]?.findings?.length || 0 }} 项核对）
+              </span>
+            </div>
+          </div>
+        </template>
+
+        <p v-else class="text-sm text-muted-foreground">
+          暂无准确性校验数据（此报告在功能上线前生成，或校验被关闭）。
+        </p>
+      </div>
+    </div>
+
     <!-- ── 时间轴校验 ──────────────────────────────────────────── -->
     <div v-if="activeTab === 'validation'" class="mt-4 animate-fade-in">
       <div class="rounded-xl border border-border bg-card p-6 space-y-4">
@@ -441,6 +535,7 @@ const tabs = [
   { key: "ai",         label: "AI 报告" },
   { key: "human",      label: "人看摘要" },
   { key: "prompt",     label: "豆包提示词" },
+  { key: "accuracy",   label: "准确性校验" },
   { key: "validation", label: "时间轴校验" },
 ];
 
@@ -502,6 +597,33 @@ async function regeneratePrompts() {
 const validation = computed(() =>
   props.report.validationJson || props.report.validation_json || null
 );
+
+// ── 准确性校验数据 ────────────────────────────────────────────────
+const accuracy = computed(() => {
+  const raw = props.report.accuracyJson || props.report.accuracy_json || null;
+  if (!raw) return null;
+  return typeof raw === "string" ? JSON.parse(raw) : raw;
+});
+
+const LAYER_LABEL = {
+  L1: "L1 地面真值",
+  L2: "L2 定向复核",
+  L3: "L3 首帧接地",
+};
+
+const accuracyVerdict = computed(() => {
+  const v = accuracy.value?.summary?.verdict;
+  if (v === "fail")   return { label: "✗ 发现矛盾", variant: "destructive" };
+  if (v === "review") return { label: "⚠ 需人工确认", variant: "warning" };
+  if (v === "pass")   return { label: "✓ 通过", variant: "success" };
+  return { label: "—", variant: "secondary" };
+});
+
+// 跳到 AI 报告手动修正（准确性面板复用）
+function goEditFromAccuracy() {
+  activeTab.value = "ai";
+  startEditAi();
+}
 
 // CompareViewer 更新提示词后同步到豆包 tab
 watch(() => props.overridePrompt, (val) => {
