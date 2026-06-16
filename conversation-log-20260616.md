@@ -113,3 +113,60 @@ report.accuracyJson = {
 ### 接力提示
 - 重启服务记得 `export PATH="/c/nvm4w/nodejs:$PATH"`（会话内 PATH 过期），或开新 PowerShell 窗口
 - 改完 server 代码后端有 nodemon 吗？当前是 `node app.js`（非 dev），需手动重启后端进程
+
+---
+
+## 第三轮：可灵（kling）提示词生成（进行中）
+
+### 现状诊断
+可灵是"空壳通道"：前端入口/上传/DB platform 字段/case按platform检索 全有，但 run() 里 `if (platform==="douban")` 才生成，**kling 选了啥都不生成，提示词Tab空**。可灵生成逻辑完全不存在。
+
+### 用户拍板的设计
+- 分镜来源：**报告§1/§7 为主 + L1 detectScenes(ffmpeg切点) 双保校验**
+- 多版本：**要**（简洁版/复杂版/带时间戳详细版，具体模板后期再定）
+- 落库：**复用 doubao_prompts_json 字段**（不新建列），前端按 platform 区分渲染
+- 每镜多版：可灵逐镜，结构为 [{shot,startSec,endSec,versions:[{strategy,text}...]}] 或类似
+- 改动范围：Claude 自行规划
+
+### 可灵 vs 豆包本质差异
+| | 豆包 | 可灵 |
+|---|---|---|
+| 输出 | 1段散文 | 逐镜N段 |
+| 触发 | ≤10s | >10s |
+| @引用 | 数字序号 | @角色图/@场景图/@道具书图，二镜起@上一镜最后帧 |
+| 每镜6段 | — | 技术头→起始画面→场景+@→台词→书→运镜+时长 |
+- 不复用 generateDoubaoPrompts 的3版策略；新建 generateKlingPrompts。
+
+### 分块（K-A..K-F）
+- [ ] K-A 分镜解析（parseShotsFromReport + detectScenes双保）
+- [ ] K-B generateKlingPrompts 逐镜×多版
+- [ ] K-C run() 平台分叉
+- [ ] K-D 前端按platform渲染逐镜卡片
+- [ ] K-E regenerate适配 + 联调 + lint
+- [ ] K-F 接力+git推送
+
+### 关键复用件
+- accuracy.js: detectScenes(切点), buildConflictNote(冲突注入), extractSection(抓§N)
+- analysis.service.js: getChinaDateInfo/buildRefImagesNote/buildScriptNote/stripTitle 可共享
+- run() 分叉点在 analysis.service.js:397
+- regenerate端点 tasks.route.js:159（目前写死 generateDoubaoPrompts，K-E要按platform分叉）
+
+### 可灵任务全部完成（K-A..K-F ✅）
+- K-A parseShots：§7/§1 解析镜头 + ffmpeg detectScenes 双保（差≥2镜给note告警）
+- K-B generateKlingPrompts：每镜1次调用返回3版（简洁/复杂/详细），错误降级占位
+- K-C run() 平台分叉：kling→逐镜，douban→3版；统一落 doubao_prompts_json（kling存{kind:'kling',shots:[...],note}）
+- K-D 前端：isKling computed，逐镜卡片（镜号/时间/版本切换/复制本镜/打开可灵），Tab名随平台变（豆包/可灵提示词）
+- K-E regenerate端点按平台分叉 + regenerateKlingPrompts（轻量，不带conflictNote）
+- 文件：新增 server/src/lib/kling.js；改 analysis.service.js / tasks.route.js / ReportViewer.vue
+
+### e2e 实测（新key配额已恢复，qwen3.5-omni-plus 确认）
+强制 platform=kling 跑 10s 视频：分镜2镜(§7) + ffmpeg检出5镜→note正确告警；逐镜3版生成质量好；
+@引用正确（镜1=@构图参考图，镜2=以上一镜最后帧）；季节适配夏季短袖；准确性5矛盾照常检出+注入；
+kind:kling 正确落库。前后端 lint 全绿，HMR 无错。测试数据已清理。
+
+### 可灵模板待办（用户说后期讨论）
+当前3版模板是初始可用版（KLING_VERSIONS in kling.js）。后续可调简洁/复杂/详细的具体结构。
+
+### 注意
+- 现有两条测试视频都≤10s，没有真正>10s的可灵实战素材；逻辑已验证，等真实长视频。
+- 分镜note：报告分镜常比ffmpeg少（口播快切），note会频繁告警，属预期；以报告为准。

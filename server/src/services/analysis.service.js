@@ -9,6 +9,7 @@ const CaseModel  = require("../models/case.model");
 const { analyzeVideo } = require("../lib/video-analyzer");
 const { validateTimeline } = require("../lib/validator");
 const { runAccuracyChecks, appendLedger, buildConflictNote } = require("../lib/accuracy");
+const { parseShots, generateKlingPrompts } = require("../lib/kling");
 const { callDashScope } = require("../lib/dashscope");
 
 // ── 中国时间工具 ──────────────────────────────────────────────────
@@ -391,20 +392,44 @@ async function run(taskId, onProgress = () => {}) {
     // ③ 人看版摘要
     const humanSummary = extractHumanSummary(aiReport);
 
-    // ④ 豆包提示词（3版并行，原始任务+douban平台才生成）
+    // ④ 提示词生成（按平台分叉，原始任务才生成；落库统一复用 doubao_prompts_json）
     let doubaoPrompt = "";
     let doubaoPromptsJson = null;
-    if (task.task_type !== "comparison" && (task.platform || "douban") === "douban") {
-      onProgress("正在并行生成3版豆包提示词…");
+    const platform = task.platform || "douban";
+    if (task.task_type !== "comparison") {
       const conflictNote = buildConflictNote(accuracy);
       if (conflictNote) onProgress("提示词生成将规避存疑字段（不硬停，标注处理）…");
-      doubaoPromptsJson = await generateDoubaoPrompts(aiReport, {
-        refImages, scriptMode, scriptData,
-        sceneType, platform: task.platform || "douban",
-        conflictNote,
-      });
-      doubaoPrompt = doubaoPromptsJson[1]?.text || doubaoPromptsJson[0]?.text || ""; // 默认展示空间构图版
-      onProgress("3版豆包提示词已生成 ✓");
+
+      if (platform === "kling") {
+        // 可灵：逐镜 × 多版本
+        const duration = accuracy?.meta?.duration || (validation && validation.duration) || null;
+        const { shots, note: shotNote, source } = parseShots(task.video_path, aiReport, duration);
+        onProgress(`可灵分镜：${shots.length} 个镜头（来源 ${source}）${shotNote ? "，" + shotNote : ""}`);
+        const klingResult = await generateKlingPrompts(aiReport, {
+          shots,
+          refImagesNote: buildRefImagesNote(refImages),
+          scriptNote: buildScriptNote(scriptMode, scriptData),
+          ...getChinaDateInfo(),
+          conflictNote,
+          shotNote,
+          onProgress,
+        });
+        doubaoPromptsJson = klingResult; // { kind:'kling', shots:[...], note }
+        // 默认展示：第1镜复杂版
+        doubaoPrompt = klingResult.shots?.[0]?.versions?.[1]?.text
+          || klingResult.shots?.[0]?.versions?.[0]?.text || "";
+        onProgress(`可灵逐镜提示词已生成 ✓（${klingResult.shots.length} 镜）`);
+      } else {
+        // 豆包：3 版策略并行
+        onProgress("正在并行生成3版豆包提示词…");
+        doubaoPromptsJson = await generateDoubaoPrompts(aiReport, {
+          refImages, scriptMode, scriptData,
+          sceneType, platform,
+          conflictNote,
+        });
+        doubaoPrompt = doubaoPromptsJson[1]?.text || doubaoPromptsJson[0]?.text || ""; // 默认展示空间构图版
+        onProgress("3版豆包提示词已生成 ✓");
+      }
     }
 
     // ⑤ 报告落盘
@@ -429,6 +454,31 @@ async function run(taskId, onProgress = () => {}) {
   } catch (err) {
     TaskModel.updateStatus(taskId, "failed", err.message);
     throw err;
+  }
+}
+
+// ── 可灵提示词重新生成（只重跑逐镜，不重新分析视频） ────────────
+
+async function regenerateKlingPrompts(task, aiReport, { refImages = [], scriptMode = null, scriptData = null } = {}) {
+  const duration = probeDurationSafe(task.video_path);
+  const { shots, note: shotNote, source } = parseShots(task.video_path, aiReport, duration);
+  return generateKlingPrompts(aiReport, {
+    shots,
+    refImagesNote: buildRefImagesNote(refImages),
+    scriptNote: buildScriptNote(scriptMode, scriptData),
+    ...getChinaDateInfo(),
+    conflictNote: "",  // 重生成不带准确性上下文（保持轻量）
+    shotNote: shotNote || (source === "fallback-single" ? "报告未给分镜时间，按单镜处理" : null),
+  });
+}
+
+/** 安全取时长（ffprobe 不可用返回 null，不抛错） */
+function probeDurationSafe(videoPath) {
+  try {
+    const { probeMeta } = require("../lib/accuracy");
+    return probeMeta(videoPath).duration || null;
+  } catch {
+    return null;
   }
 }
 
@@ -485,4 +535,4 @@ ${userFeedback || "（无）"}
   return ReportModel.update(reportId, { doubaoPrompt: newPrompt.trim() });
 }
 
-module.exports = { run, compareAnalyze, reoptimize, generateDoubaoPrompts };
+module.exports = { run, compareAnalyze, reoptimize, generateDoubaoPrompts, regenerateKlingPrompts };

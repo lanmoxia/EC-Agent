@@ -125,11 +125,80 @@
       </div>
     </div>
 
-    <!-- ── 豆包提示词 ──────────────────────────────────────────── -->
+    <!-- ── 提示词（豆包多版 / 可灵逐镜） ──────────────────────── -->
     <div v-if="activeTab === 'prompt'" class="mt-4 animate-fade-in space-y-3">
 
-      <!-- 多版本卡片（3版并行生成时） -->
-      <template v-if="promptVersions.length > 0">
+      <!-- 可灵：逐镜卡片 -->
+      <template v-if="isKling">
+        <div v-if="klingNote" class="rounded-md border border-amber-500/30 bg-amber-500/8 px-3 py-2 text-xs text-amber-400">
+          ⚠ {{ klingNote }}
+        </div>
+        <div class="flex items-center justify-between">
+          <p class="text-sm font-semibold text-muted-foreground">可灵逐镜提示词（共 {{ klingShots.length }} 镜）</p>
+          <div class="flex items-center gap-2">
+            <button
+              class="flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:opacity-40"
+              :disabled="regenerating"
+              @click="regeneratePrompts"
+            >
+              <RefreshCw class="h-3.5 w-3.5" :class="regenerating && 'animate-spin'" />
+              {{ regenerating ? '生成中…' : '重新生成' }}
+            </button>
+            <button
+              class="flex items-center gap-1.5 rounded-md border border-sky-500/30 bg-sky-500/10 px-3 py-1.5 text-xs text-sky-400 transition-colors hover:bg-sky-500/20"
+              @click="openKling"
+            >
+              <ExternalLink class="h-3.5 w-3.5" />
+              打开可灵
+            </button>
+          </div>
+        </div>
+        <span v-if="regenError" class="text-xs text-destructive">{{ regenError }}</span>
+
+        <div
+          v-for="shot in klingShots"
+          :key="shot.index"
+          class="rounded-xl border border-border bg-card p-5 space-y-3"
+        >
+          <!-- 镜头头：镜号 + 时间 + 版本切换 -->
+          <div class="flex items-center justify-between gap-3 flex-wrap">
+            <div class="flex items-center gap-2">
+              <span class="rounded-full bg-sky-500/15 px-2.5 py-0.5 text-xs font-semibold text-sky-400">第 {{ shot.index }} 镜</span>
+              <span v-if="shot.start != null" class="text-xs text-muted-foreground">
+                {{ shot.start.toFixed(1) }}s ~ {{ shot.end != null ? shot.end.toFixed(1) + 's' : '?' }}
+              </span>
+            </div>
+            <div class="flex items-center gap-1">
+              <button
+                v-for="(v, vi) in shot.versions"
+                :key="vi"
+                class="rounded-md px-2.5 py-1 text-xs font-medium transition-colors"
+                :class="klingVerIdx(shot.index) === vi
+                  ? 'bg-sky-500 text-white'
+                  : 'border border-border text-muted-foreground hover:bg-accent'"
+                @click="setKlingVersion(shot.index, vi)"
+              >
+                {{ v.strategy }}
+              </button>
+            </div>
+          </div>
+          <!-- 当前选中版本正文 -->
+          <p class="whitespace-pre-wrap text-sm leading-relaxed text-foreground">{{ shot.versions[klingVerIdx(shot.index)]?.text }}</p>
+          <!-- 复制 -->
+          <div class="flex justify-end">
+            <button
+              class="flex items-center gap-1 rounded-md border border-border px-2.5 py-1 text-xs text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+              @click="copy(shot.versions[klingVerIdx(shot.index)]?.text, `k${shot.index}`)"
+            >
+              <component :is="copied === `k${shot.index}` ? CheckCheck : Copy" class="h-3 w-3" />
+              {{ copied === `k${shot.index}` ? '已复制' : '复制本镜' }}
+            </button>
+          </div>
+        </div>
+      </template>
+
+      <!-- 豆包多版本卡片（3版并行生成时） -->
+      <template v-else-if="promptVersions.length > 0">
         <div
           v-for="(v, i) in promptVersions"
           :key="i"
@@ -540,13 +609,13 @@ const props = defineProps({
   overridePrompt: { type: String,  default: null },
 });
 
-const tabs = [
+const tabs = computed(() => [
   { key: "ai",         label: "AI 报告" },
   { key: "human",      label: "人看摘要" },
-  { key: "prompt",     label: "豆包提示词" },
+  { key: "prompt",     label: isKling.value ? "可灵提示词" : "豆包提示词" },
   { key: "accuracy",   label: "准确性校验" },
   { key: "validation", label: "时间轴校验" },
-];
+]);
 
 const activeTab    = ref("ai");
 const copied       = ref(null);
@@ -574,10 +643,33 @@ const saveHumanError = ref(null);
 
 // 多版本提示词（3版并行生成时）
 const localVersions = ref(null); // 重新生成后覆盖 props 里的版本
+
+// 原始提示词数据：豆包为数组，可灵为 { kind:'kling', shots:[...] }
+const rawPrompts = computed(() => localVersions.value ?? props.report.doubaoPromptsJson ?? null);
+
+// 可灵检测 + 数据
+const isKling = computed(() => !!rawPrompts.value && rawPrompts.value.kind === "kling");
+const klingShots = computed(() => (isKling.value ? rawPrompts.value.shots || [] : []));
+const klingNote = computed(() => (isKling.value ? rawPrompts.value.note : null));
+
+// 豆包多版本（数组）
 const promptVersions = computed(() => {
   if (props.overridePrompt) return [];
-  return localVersions.value ?? props.report.doubaoPromptsJson ?? [];
+  const r = rawPrompts.value;
+  return Array.isArray(r) ? r : [];
 });
+
+// 每镜当前选中的版本下标（可灵）
+const klingActiveVersion = ref({});
+function setKlingVersion(shotIndex, vIdx) {
+  klingActiveVersion.value = { ...klingActiveVersion.value, [shotIndex]: vIdx };
+}
+function klingVerIdx(shotIndex) {
+  return klingActiveVersion.value[shotIndex] ?? 1; // 默认复杂版
+}
+function openKling() {
+  window.open("https://klingai.kuaishou.com/", "_blank", "noopener");
+}
 const adoptedIndex   = ref(null);
 const adoptingIndex  = ref(null);
 const regenerating   = ref(false);

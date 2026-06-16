@@ -165,23 +165,33 @@ router.post("/:id/regenerate-prompts", async (req, res, next) => {
     if (!report) throw Object.assign(new Error("报告不存在，请先完成视频分析"), { status: 404 });
     if (!report.ai_report) throw Object.assign(new Error("AI 报告为空，无法生成提示词"), { status: 400 });
 
-    const { generateDoubaoPrompts } = require("../services/analysis.service");
+    const { generateDoubaoPrompts, regenerateKlingPrompts } = require("../services/analysis.service");
     const refImages  = task.ref_images_json ? JSON.parse(task.ref_images_json) : [];
     const scriptMode = task.script_mode || null;
     const scriptData = task.script_json  ? JSON.parse(task.script_json)  : null;
+    const platform   = task.platform || "douban";
 
-    const newVersions = await generateDoubaoPrompts(report.ai_report, {
-      refImages,
-      scriptMode,
-      scriptData,
-      sceneType: task.scene_type || null,
-      platform:  task.platform  || "douban",
-    });
-
-    const updated = ReportModel.update(report.id, {
-      doubaoPromptsJson: newVersions,
-      doubaoPrompt: newVersions[0]?.text || "",
-    });
+    let updated;
+    if (platform === "kling") {
+      const klingResult = await regenerateKlingPrompts(task, report.ai_report, {
+        refImages, scriptMode, scriptData,
+      });
+      updated = ReportModel.update(report.id, {
+        doubaoPromptsJson: klingResult,
+        doubaoPrompt: klingResult.shots?.[0]?.versions?.[1]?.text
+          || klingResult.shots?.[0]?.versions?.[0]?.text || "",
+      });
+    } else {
+      const newVersions = await generateDoubaoPrompts(report.ai_report, {
+        refImages, scriptMode, scriptData,
+        sceneType: task.scene_type || null,
+        platform,
+      });
+      updated = ReportModel.update(report.id, {
+        doubaoPromptsJson: newVersions,
+        doubaoPrompt: newVersions[0]?.text || "",
+      });
+    }
 
     res.json({ success: true, data: updated });
   } catch (err) {
