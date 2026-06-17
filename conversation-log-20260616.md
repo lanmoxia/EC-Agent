@@ -281,3 +281,41 @@ commit: 72881c6
 ## 当前提交基线
 - 9d05a93 记录下一大方向到 TODO
 - 72881c6 权限改为全量放行
+
+---
+
+## 第五轮：豆包多账户一键切换 + Edge打开 + 无水印插件（已完成）
+
+### 需求背景
+1. 系统"打开豆包"要用 Edge（Chrome 装不了 doubao-nomark 无水印插件）
+2. 多个豆包账号切换烦——要列出所有账号、点击用对应账号登录态打开
+3. 插件每个 Edge Profile 要装一遍 + 新Profile没登录装不了
+
+### 落地
+- **后端 server/src/routes/system.route.js（新）+ app.js 注册 /api/system**
+  · GET /edge-profiles：读 Edge `Local State` 的 profile.info_cache，返回 [{dir,name}]
+  · POST /open-edge {url,profile?}：后端 spawn msedge.exe（完整路径，兜底 cmd start），
+    profile 参数指定 --profile-directory（带白名单校验防注入）以对应账号登录态打开
+  · Edge 路径：C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe
+- **前端 EdgeDoubaoLauncher.vue（新）**：账户按钮组
+  · 点账户名=用该Profile打开豆包；悬浮=弹菜单切额度状态
+  · 状态：normal绿/update黄/empty红（默认绿），文案"正常/待更新额度/额度用完"
+  · 状态存本机 localStorage（key=ec-doubao-acct-status），Edge Profile 本就是本机的
+- **ReportViewer.vue**：两处"打开豆包"换成 <EdgeDoubaoLauncher>，挂载拉账户列表
+- 当前机器 Edge Profile：Default=大包 / Profile 1=2包 / Profile 2=musk / Profile 3=huaxie
+
+### 无水印插件：注册表强制安装（已执行）
+插件每Profile装一遍太烦+新Profile装不了 → 用 Edge 策略强制安装：
+```
+reg add "HKCU\SOFTWARE\Policies\Microsoft\Edge\ExtensionInstallForcelist" /v 1 /t REG_SZ /d "hjlplfcnpgglfdjafekcgahffdengaij;https://edge.microsoft.com/extensionwebstorebase/v1/crx" /f
+```
+扩展ID hjlplfcnpgglfdjafekcgahffdengaij（doubao-nomark）。重启Edge后所有Profile自动装、无需登录微软、永久。
+副作用：Edge显示"由组织管理"（无害）。撤销：删该注册表项+重启。
+**注意：这是注册表操作，不进git，换机（家里）需重新执行这条命令。**
+
+### doubao-nomark 资源
+- Edge扩展ID：hjlplfcnpgglfdjafekcgahffdengaij
+- 油猴脚本：greasyfork.org/zh-CN/scripts/561907（名为"图片提取"，视频支持待实测）
+- 本地服务（未用）：FastAPI，GET /parse-video?url=分享链接 返回无水印地址
+
+### 验收：用户已确认账户标签颜色+悬浮切换状态正常

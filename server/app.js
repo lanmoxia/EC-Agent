@@ -29,6 +29,7 @@ app.use("/api/tasks", require("./src/routes/tasks.route"));
 app.use("/api/reports", require("./src/routes/reports.route"));
 app.use("/api/accounts", require("./src/routes/accounts.route"));
 app.use("/api/sse", require("./src/routes/sse.route"));
+app.use("/api/system", require("./src/routes/system.route"));
 
 // ── 健康检查 ──────────────────────────────────────────────────
 app.get("/api/health", (req, res) => {

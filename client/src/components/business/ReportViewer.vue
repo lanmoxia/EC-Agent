@@ -322,13 +322,7 @@
             </button>
             <span v-if="regenError" class="text-xs text-destructive">{{ regenError }}</span>
           </div>
-          <button
-            class="flex items-center gap-1.5 rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-1.5 text-xs text-amber-400 transition-colors hover:bg-amber-500/20"
-            @click="openDoubao"
-          >
-            <ExternalLink class="h-3.5 w-3.5" />
-            打开豆包
-          </button>
+          <EdgeDoubaoLauncher :profiles="edgeProfiles" @open="openDoubaoWith" @open-default="openDoubao" />
         </div>
       </template>
 
@@ -388,13 +382,7 @@
           <p v-if="saveError" class="text-xs text-destructive">{{ saveError }}</p>
 
           <div v-if="!editingPrompt" class="flex items-center justify-end gap-2 border-t border-border pt-4">
-            <button
-              class="flex items-center gap-1.5 rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-1.5 text-xs text-amber-400 transition-colors hover:bg-amber-500/20"
-              @click="openDoubao"
-            >
-              <ExternalLink class="h-3.5 w-3.5" />
-              打开豆包
-            </button>
+            <EdgeDoubaoLauncher :profiles="edgeProfiles" @open="openDoubaoWith" @open-default="openDoubao" />
           </div>
         </div>
       </template>
@@ -598,11 +586,13 @@
 </template>
 
 <script setup>
-import { ref, computed, watch } from "vue";
+import { ref, computed, watch, onMounted } from "vue";
 import { Copy, CheckCheck, ThumbsDown, ExternalLink, Pencil, RefreshCw } from "lucide-vue-next";
 import Badge from "@/components/ui/Badge.vue";
+import EdgeDoubaoLauncher from "@/components/business/EdgeDoubaoLauncher.vue";
 import { reportsApi } from "@/api/reports.api";
 import { tasksApi } from "@/api/tasks.api";
+import api from "@/api/axios";
 
 const props = defineProps({
   report:         { type: Object, required: true },
@@ -771,8 +761,33 @@ async function copy(text, key) {
   } catch {}
 }
 
-function openDoubao() {
-  window.open("https://www.doubao.com/", "_blank", "noopener");
+// Edge 多账户（豆包账号一键切换）
+const edgeProfiles = ref([]);
+onMounted(async () => {
+  try {
+    const res = await api.get("/system/edge-profiles");
+    edgeProfiles.value = res.profiles || [];
+  } catch {
+    edgeProfiles.value = [];
+  }
+});
+
+// 默认打开（无指定账户，用 Edge 默认 Profile）
+async function openDoubao() {
+  try {
+    await api.post("/system/open-edge", { url: "https://www.doubao.com/" });
+  } catch {
+    window.open("https://www.doubao.com/", "_blank", "noopener");
+  }
+}
+
+// 用指定 Edge 账户（Profile）打开豆包
+async function openDoubaoWith(profileDir) {
+  try {
+    await api.post("/system/open-edge", { url: "https://www.doubao.com/", profile: profileDir });
+  } catch {
+    window.open("https://www.doubao.com/", "_blank", "noopener");
+  }
 }
 
 // ── 提示词编辑（单版本模式） ─────────────────────────────────────
