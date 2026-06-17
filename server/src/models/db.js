@@ -101,6 +101,7 @@ for (const col of [
   "ALTER TABLE tasks ADD COLUMN scene_type TEXT",
   "ALTER TABLE cases ADD COLUMN status TEXT DEFAULT 'active'",
   "ALTER TABLE reports ADD COLUMN accuracy_json TEXT",
+  "ALTER TABLE tasks ADD COLUMN user_feedback TEXT",
 ]) {
   try { db.exec(col); } catch {}
 }

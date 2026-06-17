@@ -3,12 +3,12 @@
 const db = require("./db");
 
 const TaskModel = {
-  create({ id, videoName, videoPath, refImagesJson = null, scriptMode = null, scriptJson = null, platform = "douban", taskType = "original", parentTaskId = null }) {
+  create({ id, videoName, videoPath, refImagesJson = null, scriptMode = null, scriptJson = null, platform = "douban", taskType = "original", parentTaskId = null, userFeedback = null }) {
     const now = Date.now();
     db.prepare(`
-      INSERT INTO tasks (id, status, video_name, video_path, ref_images_json, script_mode, script_json, platform, task_type, parent_task_id, created_at, updated_at)
-      VALUES (?, 'pending', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `).run(id, videoName, videoPath, refImagesJson, scriptMode, scriptJson, platform, taskType, parentTaskId, now, now);
+      INSERT INTO tasks (id, status, video_name, video_path, ref_images_json, script_mode, script_json, platform, task_type, parent_task_id, user_feedback, created_at, updated_at)
+      VALUES (?, 'pending', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(id, videoName, videoPath, refImagesJson, scriptMode, scriptJson, platform, taskType, parentTaskId, userFeedback, now, now);
     return this.findById(id);
   },
 

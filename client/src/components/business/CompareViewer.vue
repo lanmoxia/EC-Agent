@@ -37,6 +37,7 @@ import { reportsApi } from "@/api/reports.api";
 const props = defineProps({
   originalReport:   { type: Object, required: true },
   comparisonReport: { type: Object, required: true },
+  userFeedback:     { type: String,  default: "" }, // 用户"哪里不像"反馈（来自对比任务）
 });
 
 const emit = defineEmits(["prompt-updated"]);
@@ -77,7 +78,7 @@ onMounted(async () => {
   try {
     const res = await reportsApi.reoptimize(props.originalReport.id, {
       failureAnalysis: failureAnalysis.value,
-      userFeedback:    "",
+      userFeedback:    props.userFeedback || "",
     });
     const newPrompt = res.data?.doubao_prompt;
     if (newPrompt) emit("prompt-updated", newPrompt);

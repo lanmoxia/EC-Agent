@@ -5,8 +5,12 @@ const { nanoid } = require("nanoid");
 const ReportModel = require("../models/report.model");
 const CaseModel    = require("../models/case.model");
 const ReviewModel  = require("../models/review.model");
+const config       = require("../config");
 const fs           = require("fs");
 const path         = require("path");
+
+// 经验日志固定写到项目根（不再硬编码 E:/claude-vision-skill；旧路径会静默失败）
+const EXP_FILE = path.join(path.dirname(config.reports.dir), "prompt-experiments.md");
 
 // GET /api/reports — 报告列表（分页）
 router.get("/", (req, res, next) => {
@@ -97,8 +101,6 @@ router.post("/:id/adopt-prompt", async (req, res, next) => {
 
     // 经验积累：追加写入 prompt-experiments.md + 写入案例库
     try {
-      const fs   = require("fs");
-      const path = require("path");
       const db   = require("../models/db");
       const task = db.prepare("SELECT video_name, scene_type, platform FROM tasks WHERE id = ?").get(report.task_id);
 
@@ -113,10 +115,9 @@ router.post("/:id/adopt-prompt", async (req, res, next) => {
       });
 
       // ② 经验日志
-      const expFile = path.join("E:/claude-vision-skill", "prompt-experiments.md");
       const dateStr = new Date().toISOString().slice(0, 10);
       const entry   = `\n---\n**日期：** ${dateStr}  **策略：** ${strategy || `版本${(index ?? 0) + 1}`}  **视频：** ${task?.video_name || report.task_id}\n\n${text}\n`;
-      fs.appendFileSync(expFile, entry, "utf8");
+      fs.appendFileSync(EXP_FILE, entry, "utf8");
     } catch {}
 
     res.json({ success: true, data: updated });
@@ -172,10 +173,9 @@ router.post("/:id/reviews", (req, res, next) => {
     try {
       const db      = require("../models/db");
       const task    = db.prepare("SELECT video_name FROM tasks WHERE id = ?").get(report.task_id);
-      const expFile = path.join("E:/claude-vision-skill", "prompt-experiments.md");
       const dateStr = new Date().toISOString().slice(0, 10);
       const entry   = `\n---\n**日期：** ${dateStr}  **类型：人工评审**  **视频：** ${task?.video_name || report.task_id}  **策略：** ${strategy || "未知"}\n\n**提示词：**\n${promptText || "（未记录）"}\n\n**评审意见：**\n${reviewText.trim()}\n`;
-      fs.appendFileSync(expFile, entry, "utf8");
+      fs.appendFileSync(EXP_FILE, entry, "utf8");
     } catch {}
 
     res.status(201).json({ success: true, data: review });

@@ -17,9 +17,9 @@ export const reportsApi = {
     return api.put(`/reports/${id}`, data);
   },
 
-  // 自动对比两份报告，输出差异列表
-  compareAnalyze(id, { comparisonReport }) {
-    return api.post(`/reports/${id}/compare-analyze`, { comparisonReport });
+  // 自动对比两份报告，输出差异列表（comparisonReportId 用于后端缓存差异，避免刷新重跑）
+  compareAnalyze(id, { comparisonReport, comparisonReportId }) {
+    return api.post(`/reports/${id}/compare-analyze`, { comparisonReport, comparisonReportId });
   },
 
   // 基于差异分析+用户反馈重新生成豆包提示词

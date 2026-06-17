@@ -145,6 +145,7 @@ router.post(
         platform: parentTask.platform || "douban",
         taskType: "comparison",
         parentTaskId: parentTask.id,
+        userFeedback: (req.body.feedback || "").trim() || null,  // 用户"哪里不像"反馈，供 reoptimize 优先采用
       });
 
       queueService.enqueue(task.id);
@@ -189,7 +190,8 @@ router.post("/:id/regenerate-prompts", async (req, res, next) => {
       });
       updated = ReportModel.update(report.id, {
         doubaoPromptsJson: newVersions,
-        doubaoPrompt: newVersions[0]?.text || "",
+        // 与首次生成 run() 一致：默认展示第2版（场景增强版），兜底第1版
+        doubaoPrompt: newVersions[1]?.text || newVersions[0]?.text || "",
       });
     }
 

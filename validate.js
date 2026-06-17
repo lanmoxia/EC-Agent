@@ -92,10 +92,10 @@ async function main() {
   if (!reportText.trim()) {
     warnings.push("未提供报告内容，仅获取视频时长");
   } else {
-    // 只解析第3段（时间轴台词），避免把分镜建议等大段范围误抓进来
-    const sec3Match = reportText.match(/##\s*3[\.．][\s\S]*?(?=##\s*4[\.．]|$)/);
-    const sec3Text = sec3Match ? sec3Match[0] : reportText;
-    const allTs = extractTimestamps(sec3Text);
+    // 只解析第5段（时间轴台词）——9段规范台词在§5，§3是角色外观；避免误抓
+    const sec5Match = reportText.match(/##\s*5[\.．][\s\S]*?(?=##\s*6[\.．]|$)/);
+    const sec5Text = sec5Match ? sec5Match[0] : reportText;
+    const allTs = extractTimestamps(sec5Text);
     const timestamps = actualDuration
       ? allTs.filter(t => !(t.start < 1 && (t.end / actualDuration) >= 0.9))
       : allTs;

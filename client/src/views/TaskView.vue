@@ -96,6 +96,7 @@
           v-else-if="comparisonTask?.status === 'done' && comparisonReport"
           :original-report="report"
           :comparison-report="comparisonReport"
+          :user-feedback="comparisonTask?.user_feedback || ''"
           @prompt-updated="onPromptUpdated"
         />
 
