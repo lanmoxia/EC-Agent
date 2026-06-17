@@ -11,11 +11,11 @@ if ! git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
   exit 0
 fi
 
-# 有未提交改动时，pull 可能冲突——先提示，不强行 pull 覆盖
-if [ -n "$(git status --porcelain 2>/dev/null)" ]; then
-  echo "[启动同步] ⚠ 检测到本地有未提交改动，已跳过自动 git pull，避免冲突。"
+# 仅当「已跟踪文件」有未提交改动时才跳过（未跟踪文件不影响 ff-only 拉取，不应拦截）。
+if [ -n "$(git status --porcelain --untracked-files=no 2>/dev/null)" ]; then
+  echo "[启动同步] ⚠ 检测到本地有未提交改动（已跟踪文件），已跳过自动 git pull，避免冲突。"
   echo "[启动同步] 请先提交或暂存本地改动，再手动 git pull；或让 Claude 协助处理。"
-  git status --short 2>/dev/null | head -10
+  git status --short --untracked-files=no 2>/dev/null | head -10
   exit 0
 fi
 
