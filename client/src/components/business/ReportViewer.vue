@@ -399,12 +399,12 @@
         </div>
 
         <template v-if="accuracy">
-          <!-- 汇总条 -->
+          <!-- 汇总条（用排除误报后的有效计数）-->
           <div class="flex flex-wrap items-center gap-2 text-xs">
-            <span class="rounded-full bg-destructive/15 px-2.5 py-0.5 font-medium text-destructive">矛盾 {{ accuracy.summary.errors }}</span>
-            <span class="rounded-full bg-amber-500/15 px-2.5 py-0.5 font-medium text-amber-400">存疑 {{ accuracy.summary.warnings }}</span>
-            <span class="rounded-full bg-sky-500/15 px-2.5 py-0.5 font-medium text-sky-400">提示 {{ accuracy.summary.infos }}</span>
+            <span class="rounded-full bg-destructive/15 px-2.5 py-0.5 font-medium text-destructive">矛盾 {{ effErrors }}</span>
+            <span class="rounded-full bg-amber-500/15 px-2.5 py-0.5 font-medium text-amber-400">存疑 {{ effWarns }}</span>
             <span class="rounded-full bg-emerald-500/15 px-2.5 py-0.5 font-medium text-emerald-400">一致 {{ accuracy.summary.oks }}</span>
+            <span v-if="dismissedFlags.length" class="rounded-full bg-muted px-2.5 py-0.5 font-medium text-muted-foreground">已忽略 {{ dismissedFlags.length }}</span>
             <span v-if="accuracy.meta?.duration" class="text-muted-foreground">
               · 实测 {{ accuracy.meta.duration.toFixed(1) }}s
               <template v-if="accuracy.meta.width">/ {{ accuracy.meta.width }}×{{ accuracy.meta.height }}</template>
@@ -412,10 +412,10 @@
             </span>
           </div>
 
-          <!-- 矛盾 + 存疑（标红/标黄，优先展示） -->
-          <div v-if="accuracy.errors?.length || accuracy.warnings?.length" class="space-y-1.5">
+          <!-- 矛盾 + 存疑（未忽略的，优先展示）-->
+          <div v-if="activeFlags.length" class="space-y-1.5">
             <div
-              v-for="(f, i) in [...accuracy.errors, ...accuracy.warnings]"
+              v-for="(f, i) in activeFlags"
               :key="'flag' + i"
               class="flex items-start gap-2 rounded-md px-3 py-2 text-xs"
               :class="f.level === 'error'
@@ -423,7 +423,24 @@
                 : 'bg-amber-500/10 text-amber-400'"
             >
               <span class="shrink-0 font-mono opacity-70">{{ LAYER_LABEL[f.layer] || f.layer }}</span>
-              <span>{{ f.msg }}</span>
+              <span class="flex-1">{{ f.msg }}</span>
+              <!-- 定位到报告对应段 -->
+              <button
+                v-if="f.section"
+                class="shrink-0 rounded border border-current/30 px-1.5 py-0.5 opacity-70 hover:opacity-100"
+                title="定位到报告对应段落"
+                @click="locateSection(f.section)"
+              >
+                §{{ f.section }} 定位
+              </button>
+              <!-- 标记误报忽略 -->
+              <button
+                class="shrink-0 rounded border border-current/30 px-1.5 py-0.5 opacity-70 hover:opacity-100"
+                title="报告无误，这是校验误报，忽略此项"
+                @click="dismissFinding(f)"
+              >
+                报告无误·忽略
+              </button>
             </div>
             <!-- 下游保护提示：冲突字段已在提示词生成时被规避 -->
             <div
@@ -445,7 +462,30 @@
             </div>
           </div>
 
-          <p v-else class="text-sm text-emerald-400">所有核对维度均与视频一致，未发现矛盾。</p>
+          <p v-else class="text-sm text-emerald-400">所有核对维度均与视频一致（或存疑项已确认无误），未发现需处理的矛盾。</p>
+
+          <!-- 已忽略（误报）可展开撤销 -->
+          <details v-if="dismissedFlags.length" class="text-xs">
+            <summary class="cursor-pointer text-muted-foreground hover:text-foreground">
+              已忽略的 {{ dismissedFlags.length }} 项（判为误报）
+            </summary>
+            <div class="mt-2 space-y-1">
+              <div
+                v-for="(f, i) in dismissedFlags"
+                :key="'dis' + i"
+                class="flex items-start gap-2 rounded-md bg-muted/40 px-3 py-1.5 text-muted-foreground line-through"
+              >
+                <span class="shrink-0 font-mono opacity-60 no-underline">{{ LAYER_LABEL[f.layer] || f.layer }}</span>
+                <span class="flex-1">{{ f.msg }}</span>
+                <button
+                  class="shrink-0 rounded border border-border px-1.5 py-0.5 no-underline hover:bg-accent"
+                  @click="restoreFinding(f)"
+                >
+                  撤销
+                </button>
+              </div>
+            </div>
+          </details>
 
           <!-- 全部一致维度（折叠展示，便于确认覆盖范围） -->
           <details v-if="accuracy.summary.oks > 0" class="text-xs">
@@ -586,7 +626,7 @@
 </template>
 
 <script setup>
-import { ref, computed, watch, onMounted } from "vue";
+import { ref, computed, watch, onMounted, nextTick } from "vue";
 import { Copy, CheckCheck, ThumbsDown, ExternalLink, Pencil, RefreshCw } from "lucide-vue-next";
 import Badge from "@/components/ui/Badge.vue";
 import EdgeDoubaoLauncher from "@/components/business/EdgeDoubaoLauncher.vue";
@@ -702,18 +742,78 @@ const LAYER_LABEL = {
   L3: "L3 首帧接地",
 };
 
+// ── 误报忽略（本机 localStorage，按报告 id；DB 本就每机独立，故无需后端）──
+const DISMISS_KEY = `ec-accuracy-dismissed:${props.report.id}`;
+const dismissed = ref(loadDismissed());
+function loadDismissed() {
+  try {
+    return new Set(JSON.parse(localStorage.getItem(DISMISS_KEY) || "[]"));
+  } catch {
+    return new Set();
+  }
+}
+function findingKey(f) {
+  return `${f.layer}|${f.field}`; // 同一报告内 layer+field 唯一
+}
+function isDismissed(f) {
+  return dismissed.value.has(findingKey(f));
+}
+function persistDismissed() {
+  try {
+    localStorage.setItem(DISMISS_KEY, JSON.stringify([...dismissed.value]));
+  } catch { /* localStorage 不可用则仅内存生效 */ }
+}
+function dismissFinding(f) {
+  dismissed.value = new Set(dismissed.value).add(findingKey(f));
+  persistDismissed();
+}
+function restoreFinding(f) {
+  const s = new Set(dismissed.value);
+  s.delete(findingKey(f));
+  dismissed.value = s;
+  persistDismissed();
+}
+
+// 有效（未被忽略的）矛盾/存疑
+const activeFlags = computed(() => {
+  if (!accuracy.value) return [];
+  return [...(accuracy.value.errors || []), ...(accuracy.value.warnings || [])]
+    .filter(f => !isDismissed(f));
+});
+const dismissedFlags = computed(() => {
+  if (!accuracy.value) return [];
+  return [...(accuracy.value.errors || []), ...(accuracy.value.warnings || [])]
+    .filter(f => isDismissed(f));
+});
+// 有效计数 + 判定（排除已忽略的误报）
+const effErrors  = computed(() => activeFlags.value.filter(f => f.level === "error").length);
+const effWarns   = computed(() => activeFlags.value.filter(f => f.level === "warn").length);
+
 const accuracyVerdict = computed(() => {
-  const v = accuracy.value?.summary?.verdict;
-  if (v === "fail")   return { label: "✗ 发现矛盾", variant: "destructive" };
-  if (v === "review") return { label: "⚠ 需人工确认", variant: "warning" };
-  if (v === "pass")   return { label: "✓ 通过", variant: "success" };
-  return { label: "—", variant: "secondary" };
+  if (!accuracy.value) return { label: "—", variant: "secondary" };
+  if (effErrors.value > 0) return { label: "✗ 发现矛盾", variant: "destructive" };
+  if (effWarns.value > 0)  return { label: "⚠ 需人工确认", variant: "warning" };
+  return { label: "✓ 通过", variant: "success" };
 });
 
 // 跳到 AI 报告手动修正（准确性面板复用）
 function goEditFromAccuracy() {
   activeTab.value = "ai";
   startEditAi();
+}
+
+// 点击 finding → 切到 AI 报告并滚动定位到对应段落 + 高亮
+function locateSection(sec) {
+  if (!sec) return;
+  activeTab.value = "ai";
+  nextTick(() => {
+    const el = document.querySelector(`.report-body [data-sec="${sec}"]`);
+    if (el) {
+      el.scrollIntoView({ behavior: "smooth", block: "center" });
+      el.classList.add("sec-flash");
+      setTimeout(() => el.classList.remove("sec-flash"), 2000);
+    }
+  });
 }
 
 // CompareViewer 更新提示词后同步到豆包 tab
@@ -737,7 +837,10 @@ function renderReport(text) {
   if (!text) return "";
   return text.split("\n").map(line => {
     if (line.startsWith("## ")) {
-      return `<p class="rh">${escHtml(line.slice(3))}</p>`;
+      // 抓段号（## N. xxx）打 data-sec，供准确性面板点击定位
+      const secMatch = line.slice(3).match(/^\s*(\d+)/);
+      const secAttr = secMatch ? ` data-sec="${secMatch[1]}"` : "";
+      return `<p class="rh"${secAttr}>${escHtml(line.slice(3))}</p>`;
     }
     if (line.trim() === "---") {
       return `<hr class="rhr">`;
@@ -954,6 +1057,14 @@ async function doFeedbackConfirm() {
 }
 .report-body :deep(.rh:first-child) {
   margin-top: 0;
+}
+/* 准确性面板「定位」点击后高亮目标段标题 */
+.report-body :deep(.rh.sec-flash) {
+  background: hsl(var(--primary) / 0.18);
+  border-radius: 4px;
+  transition: background 0.4s ease;
+  padding: 2px 6px;
+  margin-left: -6px;
 }
 .report-body :deep(hr.rhr) {
   border: none;

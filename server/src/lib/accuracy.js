@@ -185,6 +185,8 @@ function layerGroundTruth(videoPath, report) {
     }
   }
 
+  // L1 全部属报告 §1（视频基础信息），统一标段号供前端定位
+  findings.forEach(f => { if (f.section == null) f.section = 1; });
   return { meta, scenes, findings };
 }
 
@@ -254,6 +256,22 @@ const FATAL_FIELDS = [
   { key: "book_face",          label: "书封面朝向",         type: "enum", enums: ["toward_camera", "away_from_camera", "toward_subject", "side", "no_book", "uncertain"] },
   { key: "camera_motion",      label: "主镜头运动",         type: "enum", enums: ["static", "push_in", "pull_back", "pan_left", "pan_right", "tilt", "handheld_follow", "mixed", "uncertain"] },
 ];
+
+// 每个致命字段对应报告的段号（点击 finding 时定位到该段）
+const L2_SECTION = {
+  char_count: 3,          // 角色外观档案
+  is_one_take: 1,         // 视频基础信息
+  shot_count: 1,
+  subject_position: 2,    // 第一帧构图
+  entry_direction: 2,
+  movement_direction: 6,  // 动作与道具时序
+  voice_type: 5,          // 时间轴台词
+  speaker_count: 5,
+  speak_order: 5,
+  look_at_camera: 2,
+  book_face: 6,
+  camera_motion: 7,       // 镜头运动时序
+};
 
 const UNCERTAIN_VALS = new Set(["uncertain", "unclear", "unknown", "", null, undefined]);
 
@@ -380,7 +398,7 @@ async function layerRecheck(videoPath, report, { onProgress = () => {} } = {}) {
       msg = `【${f.label}】一致（${vid}）`;
     }
 
-    findings.push({ layer: "L2", level, field: f.label, key: f.key, claim: rep, truth: vid, msg });
+    findings.push({ layer: "L2", level, section: L2_SECTION[f.key] || null, field: f.label, key: f.key, claim: rep, truth: vid, msg });
     fields.push({ key: f.key, label: f.label, report: rep, video: vid, level });
   }
 
@@ -422,12 +440,18 @@ async function layerFirstFrame(videoPath, report, { onProgress = () => {} } = {}
   }
 
   const prompt = `这是一段视频的**第一帧静态截图**。下面还附了一份分析报告里「第2段·第一帧精确构图」的描述。
-请只看这张静态图，核对报告对第一帧的描述是否准确。重点核对这几项最易错的：
+请只看这张静态图，核对报告对第一帧的描述是否准确。重点核对这几项**静态、稳定**的要素：
 1. compose_direction — 路/地面/动线的 2D 方向（从画面哪边到哪边，同时含上下）
-2. char_position — 角色在画面的位置与占比（左/中/右 + 上/下象限）
-3. char_facing — 角色朝向（正对/侧向/背对镜头）
-4. char_posture — 角色第0秒体态（走动中/静止站立/说话）
-5. layout — 主要背景元素的象限位置
+2. layout — 主要背景元素（建筑/护栏/绿植/家具等）的象限位置
+3. camera_setup — 镜头机位/景别（正面/侧面、近景/中景/全景）
+4. char_position — 角色在画面的位置与占比（左/中/右 + 上/下象限）
+5. char_facing — 角色朝向（正对/侧向/背对镜头）
+
+★★ 极重要的判断原则（避免误判）：
+- 很多视频的人物是**稍后才跑入/走入画面、或全程跟拍移动**的。**第一帧没有某个人、或人物位置和报告描述不同，是完全正常的**——因为报告第2段描述的是"起始构图+初始体态"，可能已说明"角色稍后入画"。
+- **只有当报告明确说"第一帧某人在某处"、而截图里清楚地不是那样时，才算 mismatch。**
+- 对"人物是否在画面/在哪"这类**会因入画运动而变化**的项，若报告暗示有入画/移动，一律判 **ok 或 uncertain，不要判 mismatch**。
+- 真正该抓的 mismatch 是**静态要素的硬矛盾**：路向反了、背景元素象限反了、机位完全不符。
 
 针对每项，对比「报告说法」与「你看图所见」，输出 match：ok / mismatch / uncertain。
 
@@ -457,19 +481,21 @@ ${sec2}`;
 
   const LABELS = {
     compose_direction: "首帧·动线方向",
+    layout: "首帧·背景布局",
+    camera_setup: "首帧·机位景别",
     char_position: "首帧·角色位置占比",
     char_facing: "首帧·角色朝向",
     char_posture: "首帧·初始体态",
-    layout: "首帧·背景布局",
   };
   for (const it of parsed.items) {
     const label = LABELS[it.key] || `首帧·${it.key}`;
+    // L3 首帧本就软（入画/运动会天然不一致），矛盾只降级为 warn（存疑），绝不判 error
     if (it.match === "mismatch") {
-      findings.push({ layer: "L3", level: "error", field: label, claim: it.reportSays || "", truth: it.imageShows || "", msg: `【${label}】报告：${it.reportSays || "?"} ✗ 首帧图：${it.imageShows || "?"}` });
+      findings.push({ layer: "L3", level: "warn", section: 2, field: label, claim: it.reportSays || "", truth: it.imageShows || "", msg: `【${label}】报告：${it.reportSays || "?"} ⚠ 首帧图：${it.imageShows || "?"}（首帧校验仅供参考，人物入画/跟拍会天然不一致）` });
     } else if (it.match === "uncertain") {
-      findings.push({ layer: "L3", level: "warn", field: label, claim: it.reportSays || "", truth: it.imageShows || "", msg: `【${label}】首帧图无法确认（报告：${it.reportSays || "?"}）` });
+      findings.push({ layer: "L3", level: "warn", section: 2, field: label, claim: it.reportSays || "", truth: it.imageShows || "", msg: `【${label}】首帧图无法确认（报告：${it.reportSays || "?"}）` });
     } else {
-      findings.push({ layer: "L3", level: "ok", field: label, claim: it.reportSays || "", truth: it.imageShows || "", msg: `【${label}】一致` });
+      findings.push({ layer: "L3", level: "ok", section: 2, field: label, claim: it.reportSays || "", truth: it.imageShows || "", msg: `【${label}】一致` });
     }
   }
 
