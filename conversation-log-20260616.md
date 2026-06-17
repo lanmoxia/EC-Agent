@@ -319,3 +319,10 @@ reg add "HKCU\SOFTWARE\Policies\Microsoft\Edge\ExtensionInstallForcelist" /v 1 /
 - 本地服务（未用）：FastAPI，GET /parse-video?url=分享链接 返回无水印地址
 
 ### 验收：用户已确认账户标签颜色+悬浮切换状态正常
+
+---
+
+## 📌 换机首次设置 → 见 SETUP-NEW-MACHINE.md
+新机器(家/公司)首次打开,所有"不进git、每台各做一次"的设置(Node22/.env/依赖/ffmpeg/Edge无水印插件注册表)
+都整合进了根目录 **SETUP-NEW-MACHINE.md**,照着执行即可。
+让 Claude 跑就说:"按 SETUP-NEW-MACHINE.md 执行换机设置"。
