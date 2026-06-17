@@ -1,0 +1,28 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "startup",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash 'E:\\EC-Agent\\.codex\\hooks\\session-git-pull.sh'",
+            "timeout": 60,
+            "statusMessage": "拉取最新代码…"
+          }
+        ]
+      },
+      {
+        "matcher": "resume",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash 'E:\\EC-Agent\\.codex\\hooks\\session-git-pull.sh'",
+            "timeout": 60,
+            "statusMessage": "拉取最新代码…"
+          }
+        ]
+      }
+    ]
+  }
+}
