@@ -16,7 +16,7 @@ const ExperimentModel = {
     const cols = [
       "id", "report_id", "task_id", "video_name", "topic_fingerprint", "platform",
       "kind", "system_prompt", "user_rewrite", "diff_a", "problem_video",
-      "problem_report", "diff_b", "user_judgment", "reason", "status", "created_at",
+      "problem_report", "diff_b", "user_judgment", "reason", "strategy", "status", "created_at",
     ];
     const vals = {
       id,
@@ -34,6 +34,7 @@ const ExperimentModel = {
       diff_b:            fields.diffB            ?? null,
       user_judgment:     fields.userJudgment     ?? null,
       reason:            fields.reason           ?? null,
+      strategy:          fields.strategy         ?? null,
       status:            fields.status           ?? "open",
       created_at:        now,
     };
@@ -63,20 +64,18 @@ const ExperimentModel = {
    * 返回该题材的 satisfied 实验数 + 总实验数。供未来 evolution 扫描提议毕业（仍需用户确认）。
    */
   occurrences(topicFingerprint) {
-    // 按「视频(report)」去重计数，不按行——否则同一视频多行会灌水毕业门槛
+    // 按「视频(video_name)」去重计数：同一视频重分析(新report/task)不灌水毕业门槛。
+    // 注：video_name 跨不同视频可能撞名，更稳可引入 source_video_hash（后续硬化项）。
     const row = db.prepare(`
       SELECT
-        COUNT(DISTINCT report_id) AS total,
-        COUNT(DISTINCT CASE WHEN status = 'satisfied' THEN report_id END) AS satisfied
+        COUNT(DISTINCT video_name) AS total,
+        COUNT(DISTINCT CASE WHEN status = 'satisfied' THEN video_name END) AS satisfied
       FROM experiments WHERE topic_fingerprint = ?
     `).get(topicFingerprint);
     return { total: row.total || 0, satisfied: row.satisfied || 0 };
   },
-
-  /** 把某报告的某次实验标记为满意（采用时调用） */
-  markSatisfied(reportId) {
-    db.prepare("UPDATE experiments SET status = 'satisfied' WHERE report_id = ? AND status = 'open'").run(reportId);
-  },
+  // 采用满意不再用 UPDATE 改旧行（破坏 append-only + 会把负面 user_review 翻成 satisfied）；
+  // 改为在采用时 append 一条 kind='adopt' status='satisfied' 的新行（见 reports.route adopt-prompt）。
 };
 
 module.exports = ExperimentModel;

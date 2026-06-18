@@ -107,6 +107,7 @@ db.exec(`
     diff_b            TEXT,   -- B层：原报告 vs 问题视频报告
     user_judgment     TEXT,   -- 用户主观判断
     reason            TEXT,   -- 用户评审理由
+    strategy          TEXT,   -- 采用的是哪版策略（动作骨架/场景增强/完整复刻…）
     status            TEXT    DEFAULT 'open',  -- open / satisfied
     created_at        INTEGER NOT NULL
   );
@@ -129,6 +130,7 @@ for (const col of [
   "ALTER TABLE reports ADD COLUMN accuracy_json TEXT",
   "ALTER TABLE tasks ADD COLUMN user_feedback TEXT",
   "ALTER TABLE tasks ADD COLUMN topic_fingerprint TEXT",
+  "ALTER TABLE experiments ADD COLUMN strategy TEXT",
 ]) {
   try { db.exec(col); } catch {}
 }

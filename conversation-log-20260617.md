@@ -99,3 +99,11 @@
 - 实测全通过；五年级(1)指纹=indoor_dual_fatherdaughter_book_fixed_direct-talk
 - 剩: ④对比反馈→diff_b、提示词编辑→diff_a、第②层活规则注入、第③层毕业固化
 - 详见 DECISIONS.md
+
+## Codex 评审 d9f87ec → 修复4处（RAG前必修，已完成）
+- P1 采用破坏append-only+把负面评审翻satisfied → 改append kind='adopt'新行，不动旧行
+- P1 采用版没进档案 → adopt行记 systemPrompt(默认)+userRewrite(实际采用)+strategy+satisfied
+- P2 voiceover-entry误判called-turn → extractOpening重排，入画类优先
+- P2 occurrences按report_id灌水 → 改按video_name去重（source_video_hash留后续）
+- experiments加strategy列；experiment.model删markSatisfied(违append-only)
+- 实测：负面review不被污染✓、采用版进档案✓、开场重排✓、去重✓

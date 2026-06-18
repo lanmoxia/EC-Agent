@@ -56,6 +56,12 @@
 - [x] 抓取点①生成→system_gen行 ②评审→user_review行(reason) ③采用→markSatisfied
 - [x] 实测：迁移✓、真实报告指纹✓(indoor_dual_fatherdaughter_book_fixed_direct-talk)、occurrences去重✓
 
+**Codex 评审修复（d9f87ec → 本轮，RAG 前必修）**：
+- [x] P1 采用改 append `kind='adopt'` 行(不改旧行)，负面 user_review 不再被翻 satisfied
+- [x] P1 采用版真正进档案：adopt 行含 systemPrompt(默认版)+userRewrite(实际采用版)+strategy
+- [x] P2 开场重排：voiceover-entry 优先，called-turn 只管无入画的回头
+- [x] P2 occurrences 改按 video_name 去重(同视频重分析不灌水)；source_video_hash 留作后续硬化
+
 **下一步（第①层补全 + 第②③层）**：
 - [ ] 抓取点④对比+反馈→compare_feedback行(diff_b+user_judgment)
 - [ ] diff_a 计算：提示词编辑(PUT)时记 user_rewrite + 系统vs重写的diff

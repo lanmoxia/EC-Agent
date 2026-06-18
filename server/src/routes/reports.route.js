@@ -98,15 +98,13 @@ router.post("/:id/adopt-prompt", async (req, res, next) => {
     const report = ReportModel.findById(req.params.id);
     if (!report) throw Object.assign(new Error("报告不存在"), { status: 404 });
 
+    const systemDefault = report.doubao_prompt || "";  // 采用前系统默认版（diffA 的系统侧）
     const updated = ReportModel.update(req.params.id, { doubaoPrompt: text });
 
-    // 实验档案：采用 = 该报告实验标记为满意（题材毕业计数用）
-    try { ExperimentModel.markSatisfied(req.params.id); } catch { /* 不影响采用主流程 */ }
-
-    // 经验积累：追加写入 prompt-experiments.md + 写入案例库
+    // 经验积累：追加写入 prompt-experiments.md + 写入案例库 + 实验档案
     try {
       const db   = require("../models/db");
-      const task = db.prepare("SELECT video_name, scene_type, platform FROM tasks WHERE id = ?").get(report.task_id);
+      const task = db.prepare("SELECT video_name, scene_type, platform, topic_fingerprint FROM tasks WHERE id = ?").get(report.task_id);
 
       // ① 写入案例库（用于未来 RAG 检索）
       CaseModel.create({
@@ -116,6 +114,16 @@ router.post("/:id/adopt-prompt", async (req, res, next) => {
         platform:   task?.platform   || "douban",
         strategy:   strategy || `版本${(index ?? 0) + 1}`,
         promptText: text,
+      });
+
+      // ①.5 实验档案：append 一条 adopt 行（不改旧行，保 append-only）；
+      // 记系统默认版 + 实际采用版 + strategy + satisfied，作为该题材的满意样本。
+      ExperimentModel.create({
+        reportId: req.params.id, taskId: report.task_id,
+        videoName: task?.video_name, topicFingerprint: task?.topic_fingerprint,
+        platform: task?.platform || "douban", kind: "adopt",
+        systemPrompt: systemDefault, userRewrite: text,
+        strategy: strategy || `版本${(index ?? 0) + 1}`, status: "satisfied",
       });
 
       // ② 经验日志

@@ -109,10 +109,11 @@ function extractOpening(text) {
   const hasEffect = /特效|转场|片头|开场动画|动效/.test(head);
   const hasCalled = /叫住|喊住|被叫|被喊|回头|扭头/.test(head);
 
-  if (hasEffect) return "effect-transition";
-  if (hasCalled) return "called-turn";
-  if (hasVoiceover && hasEntry) return "voiceover-entry";
-  if (hasEntry) return "walk-in";
+  // 优先级：含「入画」的人触发开场优先（特效是装饰、回头常伴随入画，都不该抢分类）
+  if (hasVoiceover && hasEntry) return "voiceover-entry"; // 画外音触发入画（最核心钩子）
+  if (hasEntry) return "walk-in";                          // 单纯走入/跑入
+  if (hasCalled) return "called-turn";                     // 无入画的被叫住回头
+  if (hasEffect) return "effect-transition";               // 纯特效开场、无人触发
   return "direct-talk";
 }
 
