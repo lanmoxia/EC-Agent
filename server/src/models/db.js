@@ -89,6 +89,32 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_reviews_created ON reviews(created_at DESC);
 `);
 
+// 实验档案表（题材学习系统第①层地基；append-only，每次反馈一行，永不删）
+db.exec(`
+  CREATE TABLE IF NOT EXISTS experiments (
+    id                TEXT    PRIMARY KEY,
+    report_id         TEXT,
+    task_id           TEXT,
+    video_name        TEXT,
+    topic_fingerprint TEXT,
+    platform          TEXT    DEFAULT 'douban',
+    kind              TEXT,   -- system_gen / user_review / compare_feedback / adopt
+    system_prompt     TEXT,   -- 系统生成的提示词
+    user_rewrite      TEXT,   -- 用户重写/最终满意版
+    diff_a            TEXT,   -- A层：系统 vs 用户重写
+    problem_video     TEXT,   -- B层：问题生成视频
+    problem_report    TEXT,   -- B层：问题视频分析报告
+    diff_b            TEXT,   -- B层：原报告 vs 问题视频报告
+    user_judgment     TEXT,   -- 用户主观判断
+    reason            TEXT,   -- 用户评审理由
+    status            TEXT    DEFAULT 'open',  -- open / satisfied
+    created_at        INTEGER NOT NULL
+  );
+  CREATE INDEX IF NOT EXISTS idx_experiments_fp ON experiments(topic_fingerprint);
+  CREATE INDEX IF NOT EXISTS idx_experiments_report ON experiments(report_id);
+  CREATE INDEX IF NOT EXISTS idx_experiments_created ON experiments(created_at DESC);
+`);
+
 // 迁移：为旧数据库补列（幂等）
 for (const col of [
   "ALTER TABLE tasks ADD COLUMN ref_images_json TEXT",
@@ -102,6 +128,7 @@ for (const col of [
   "ALTER TABLE cases ADD COLUMN status TEXT DEFAULT 'active'",
   "ALTER TABLE reports ADD COLUMN accuracy_json TEXT",
   "ALTER TABLE tasks ADD COLUMN user_feedback TEXT",
+  "ALTER TABLE tasks ADD COLUMN topic_fingerprint TEXT",
 ]) {
   try { db.exec(col); } catch {}
 }

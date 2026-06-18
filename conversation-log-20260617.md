@@ -89,3 +89,13 @@
 ## 当前讨论中（详见 DECISIONS.md）
 - 题材化提示词学习系统：粒度=题材指纹(+关系+开场类型)、diff两层append-only全记录、三层架构(捕获/活规则/毕业固化)、用户判定毕业、可插拔模块
 - 待用户放调度系统到 _reference/scheduler/ 供借鉴
+
+## 题材学习系统 第①层地基（实验档案）已建成
+采纳 Codex 建议顺序：先建实验档案+fingerprint v2，skill插拔等看完调度系统(已审,记在DECISIONS)再定。
+- db: experiments 表(append-only) + tasks.topic_fingerprint 列
+- experiment.model.js: create/listByReport/listByFingerprint/occurrences(DISTINCT report去重)/markSatisfied
+- extractTopicFingerprint 6维(+关系+开场类型)，run() 写入；导出复用
+- 抓取点: ①生成→system_gen ②评审→user_review ③采用→markSatisfied
+- 实测全通过；五年级(1)指纹=indoor_dual_fatherdaughter_book_fixed_direct-talk
+- 剩: ④对比反馈→diff_b、提示词编辑→diff_a、第②层活规则注入、第③层毕业固化
+- 详见 DECISIONS.md

@@ -6,6 +6,7 @@ const config = require("../config");
 const TaskModel = require("../models/task.model");
 const ReportModel = require("../models/report.model");
 const CaseModel  = require("../models/case.model");
+const ExperimentModel = require("../models/experiment.model");
 const { analyzeVideo } = require("../lib/video-analyzer");
 const { validateTimeline } = require("../lib/validator");
 const { runAccuracyChecks, appendLedger, buildConflictNote } = require("../lib/accuracy");
@@ -84,6 +85,46 @@ function extractSceneType(aiReport) {
   const motion = /跟拍|手持跟随|跟随推进|边走边|一边走|跟着走|随行/.test(text) ? "tracking" : "fixed";
 
   return `${loc}_${chars}_${prop}_${motion}`;
+}
+
+// ── 题材指纹 v2（6维，题材学习系统用；旧 scene_type 保留兼容）─────
+// {地点}_{人数}_{关系}_{道具}_{运镜}_{开场类型}
+// 在 scene_type 的 loc/chars/prop/motion 上，多抓「关系」和「开场类型」两维。
+
+function extractRelation(text) {
+  if (/父女|爸爸.*女儿|女儿.*爸爸|爸爸.*女孩/.test(text)) return "fatherdaughter";
+  if (/母女|母子|妈妈.*(女儿|儿子|孩子)|(女儿|儿子|孩子).*妈妈/.test(text)) return "motherchild";
+  if (/夫妻|老公|老婆|情侣|男女朋友/.test(text)) return "couple";
+  if (/同事|搭档|两位.*主播|双主播/.test(text)) return "colleagues";
+  // 兜底：双人但关系不明 → other；单人 → solo
+  if (/两人|双人|二人/.test(text)) return "other";
+  return "solo";
+}
+
+function extractOpening(text) {
+  // 取报告开头部分（声部摘要 + §1/§2）作为开场判断依据
+  const head = (text.split(/##\s*3[\.．]/)[0] || text).slice(0, 1200);
+  const hasVoiceover = /画外|画外音/.test(head);
+  const hasEntry = /入画|跑入|走入|快步.*(进来|入画)|走进来|跑过来|进入画面/.test(head);
+  const hasEffect = /特效|转场|片头|开场动画|动效/.test(head);
+  const hasCalled = /叫住|喊住|被叫|被喊|回头|扭头/.test(head);
+
+  if (hasEffect) return "effect-transition";
+  if (hasCalled) return "called-turn";
+  if (hasVoiceover && hasEntry) return "voiceover-entry";
+  if (hasEntry) return "walk-in";
+  return "direct-talk";
+}
+
+function extractTopicFingerprint(aiReport) {
+  const text = aiReport || "";
+  // 复用 scene_type 的前四维
+  const base = extractSceneType(text);            // loc_chars_prop_motion
+  const [loc, chars, prop, motion] = base.split("_");
+  const relation = extractRelation(text);
+  const opening = extractOpening(text);
+  // 顺序：地点_人数_关系_道具_运镜_开场类型
+  return `${loc}_${chars}_${relation}_${prop}_${motion}_${opening}`;
 }
 
 // ── 提示词预检 ────────────────────────────────────────────────────
@@ -380,6 +421,11 @@ async function run(taskId, onProgress = () => {}) {
     TaskModel.updateSceneType(taskId, sceneType);
     onProgress(`场景类型：${sceneType}`);
 
+    // ① 题材指纹 v2（6维，题材学习系统用）
+    const topicFingerprint = extractTopicFingerprint(aiReport);
+    TaskModel.updateTopicFingerprint(taskId, topicFingerprint);
+    onProgress(`题材指纹：${topicFingerprint}`);
+
     // ② 时间轴校验
     onProgress("执行时间轴校验…");
     const validation = validateTimeline(task.video_path, aiReport);
@@ -465,6 +511,17 @@ async function run(taskId, onProgress = () => {}) {
       validationJson: JSON.stringify(validation),
       accuracyJson: accuracy ? JSON.stringify(accuracy) : null,
     });
+
+    // ⑦ 实验档案：原始任务生成提示词后，写一条 system_gen 行（题材学习地基）
+    if (task.task_type !== "comparison") {
+      try {
+        ExperimentModel.create({
+          reportId: report.id, taskId, videoName: task.video_name,
+          topicFingerprint, platform, kind: "system_gen",
+          systemPrompt: doubaoPrompt,
+        });
+      } catch { /* 实验档案写失败不影响主流程 */ }
+    }
 
     TaskModel.updateStatus(taskId, "done");
     onProgress("完成 ✓");
@@ -553,4 +610,4 @@ ${userFeedback || "（无）"}
   return ReportModel.update(reportId, { doubaoPrompt: newPrompt.trim() });
 }
 
-module.exports = { run, compareAnalyze, reoptimize, generateDoubaoPrompts, regenerateKlingPrompts };
+module.exports = { run, compareAnalyze, reoptimize, generateDoubaoPrompts, regenerateKlingPrompts, extractSceneType, extractTopicFingerprint };

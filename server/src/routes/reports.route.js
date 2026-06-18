@@ -5,6 +5,7 @@ const { nanoid } = require("nanoid");
 const ReportModel = require("../models/report.model");
 const CaseModel    = require("../models/case.model");
 const ReviewModel  = require("../models/review.model");
+const ExperimentModel = require("../models/experiment.model");
 const config       = require("../config");
 const fs           = require("fs");
 const path         = require("path");
@@ -99,6 +100,9 @@ router.post("/:id/adopt-prompt", async (req, res, next) => {
 
     const updated = ReportModel.update(req.params.id, { doubaoPrompt: text });
 
+    // 实验档案：采用 = 该报告实验标记为满意（题材毕业计数用）
+    try { ExperimentModel.markSatisfied(req.params.id); } catch { /* 不影响采用主流程 */ }
+
     // 经验积累：追加写入 prompt-experiments.md + 写入案例库
     try {
       const db   = require("../models/db");
@@ -169,14 +173,25 @@ router.post("/:id/reviews", (req, res, next) => {
       reviewText: reviewText.trim(),
     });
 
-    // 同步追加到 prompt-experiments.md
+    // 同步追加到 prompt-experiments.md（人看日志）
+    let task;
     try {
       const db      = require("../models/db");
-      const task    = db.prepare("SELECT video_name FROM tasks WHERE id = ?").get(report.task_id);
+      task    = db.prepare("SELECT video_name, topic_fingerprint, platform FROM tasks WHERE id = ?").get(report.task_id);
       const dateStr = new Date().toISOString().slice(0, 10);
       const entry   = `\n---\n**日期：** ${dateStr}  **类型：人工评审**  **视频：** ${task?.video_name || report.task_id}  **策略：** ${strategy || "未知"}\n\n**提示词：**\n${promptText || "（未记录）"}\n\n**评审意见：**\n${reviewText.trim()}\n`;
       fs.appendFileSync(EXP_FILE, entry, "utf8");
     } catch {}
+
+    // 实验档案：写一条 user_review 行（结构化检索用，append-only）
+    try {
+      ExperimentModel.create({
+        reportId: req.params.id, taskId: report.task_id,
+        videoName: task?.video_name, topicFingerprint: task?.topic_fingerprint,
+        platform: task?.platform || "douban", kind: "user_review",
+        systemPrompt: promptText || null, reason: reviewText.trim(),
+      });
+    } catch { /* 不影响评审主流程 */ }
 
     res.status(201).json({ success: true, data: review });
   } catch (err) { next(err); }

@@ -42,6 +42,11 @@ const TaskModel = {
     db.prepare("UPDATE tasks SET scene_type = ?, updated_at = ? WHERE id = ?")
       .run(sceneType, Date.now(), id);
   },
+
+  updateTopicFingerprint(id, fingerprint) {
+    db.prepare("UPDATE tasks SET topic_fingerprint = ?, updated_at = ? WHERE id = ?")
+      .run(fingerprint, Date.now(), id);
+  },
 };
 
 module.exports = TaskModel;
