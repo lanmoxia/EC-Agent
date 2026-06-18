@@ -18,7 +18,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 1. `git pull` — 拉取最新代码
 2. 检测环境：`node_modules` 不存在 或 Node 版本不是 22 → 立即运行 `.\setup.ps1`，等结果再继续
-3. 读取最近 1-2 天的 `conversation-log-*.md`（按日期排序取最新的）
+3. 读取最近 1-2 天的 `conversation-log-*.md`（按日期排序取最新的）**+ `DECISIONS.md`（在建/讨论中的方案台账，接回讨论思路）**
 4. 输出一段"项目现状摘要"给用户，格式：
    - 环境状态（Node 版本、依赖是否就绪）
    - 上次做到哪里、有无未完成任务
@@ -27,6 +27,18 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
    - 后端：`export PATH="/c/nvm4w/nodejs:/c/ffmpeg/bin:$PATH" && cd server && node app.js`
    - 前端：`cd client && npm run dev`
    - 验活：curl :3000 和 :5173 各一次，确认响应后告知用户
+
+---
+
+## 方案台账维护规则（DECISIONS.md，防讨论阶段中断丢失）
+
+讨论方案时，**一出方向/做决策就立即更新 `DECISIONS.md`**，不只更新 TODO：
+- 新需求开始讨论 → 建条目（🟡 讨论中），记 需求/背景/已定/待定
+- 每做一个决策 → 立即补进"已定决策"；每出一个未决岔路 → 补进"待定"
+- 动工 → 状态改 🟢 建设中，记关联 commit/文件
+- 完成 → 移到「已完成归档」（不删，沉淀）
+
+目的：即使在**纯讨论阶段**会话中断，下次读 `DECISIONS.md` 也能精确接回"在讨论什么、已定什么、还差哪些岔路"。摘要接力(conversation-log)照常做，二者并行不替代。
 
 **setup.ps1 说明：**
 - 检测 nvm-windows → 未装则给出安装命令/链接

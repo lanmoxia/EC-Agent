@@ -53,3 +53,6 @@ docs/liblib-raw.txt
 
 # LibreOffice 锁文件
 .~lock.*
+
+# 参考资料（借鉴用，不进主仓；要集成某部分再单独拿）
+_reference/
