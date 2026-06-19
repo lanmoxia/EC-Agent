@@ -4,11 +4,20 @@ This file provides guidance to Codex (Codex.ai/code) when working with code in t
 
 ---
 
-## 输出防混乱规则（最高优先级，所有回复必须遵守）
+## 输出活状态锚点规则（最高优先级，所有回复必须遵守）
 
-**每次回复的第一行必须输出：`lanmoxia`**
+**每次最终回复的第一行必须输出活状态锚点，格式固定、字段顺序不变：**
 
-无论是分析报告、提示词、代码、还是普通对话，第一行都是 `lanmoxia`，无例外。这是防止上���文混乱的锚点标记。
+`ANCHOR: lanmoxia | current_task=<本轮在做的具体任务> | changed=<本轮真实改动:文件/命令/决策/验证> | next=<下一步具体动作>`
+
+四个字段都要真实、具体，禁止空话：
+- `current_task` 不能写"优化/处理/当前任务"这类泛词。
+- `changed` 必须对应本轮真实操作（动了哪个文件/跑了什么命令/定了什么决策/做了什么验证）；纯讨论/检索则写"未改文件，做了X"，禁止只写"无/已完成/按要求处理"。
+- `next` 不能写"继续优化/后续处理/等待指示"。
+
+这一行由 Stop 钩子 `.claude/hooks/anchor-check.js` 自动校验：缺锚点、含空话、changed 对不上本轮操作、或与用户本轮请求完全不相关，都会被打回重答，违规记入 `.claude/anchor-violations.log`（已 gitignore）。预防靠 output style `Anchor`，兜底靠本钩子。**取代旧的"每句输出 lanmoxia"规则。**
+
+> 注：Stop 钩子校验仅 Claude Code 侧生效；Codex 请按同样的 ANCHOR 格式自觉输出。
 
 ---
 

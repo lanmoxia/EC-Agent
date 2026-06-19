@@ -15,6 +15,25 @@
 
 ---
 
+## ✅ 活状态锚点系统（防上下文漂移 · 取代"每句 lanmoxia"）
+
+**背景/痛点**：旧规则"每句回复第一行输出 lanmoxia"是埋在 CLAUDE.md 里的静态文本，会话一长被压到下方、注意力衰减就漏；且静态口令证明不了"真在跟踪上下文"（跑偏也能机械吐出）。
+
+**已定方案（2026-06-19 拍板并落地）**：把"一句话规则"升级成"三层系统"。
+- **锚点格式**：每次最终回复第一行 `ANCHOR: lanmoxia | current_task=… | changed=… | next=…`（活状态，不是死口令）。
+- **预防层**：output style `Anchor`（`.claude/output-styles/anchor.md`，系统提示词层，比 CLAUDE.md 埋文本强）。
+- **兜底层**：Stop 钩子 `.claude/hooks/anchor-check.js`（wrapper `anchor-check.sh` 双机定位 node）——读 transcript 取最后回复+最近用户请求+本轮工具，校验：①有锚点行 ②含 lanmoxia ③current_task 非空话 ④changed 对应本轮真实操作 ⑤next 非空话 ⑥与用户请求关键词非完全不重合；不合格 `decision:block` 打回重答。带 `stop_hook_active` 防循环、fail-open 不卡用户、写时序 sleep 重读。
+- **审计层**：每次违规追加 `.claude/anchor-violations.log`（gitignore），把"信任"变成可查数据。
+- **空话拦截不承诺 100%**：只用规则拦明显糊弄，语义真实性仍靠模型自觉（已写进规则）。
+
+**已验证（4 例自测，证据见 conversation-log）**：合格放行 / 空话拦截 / 无锚点拦截 / 与请求不相关拦截，全部如预期；violations.log 正确记录。wrapper bash→node 回退分支烟测通过。
+
+**生效说明**：settings.json 已设 `outputStyle:Anchor` + Stop 钩子；**hook/output style 需重启 Claude Code 会话才实际加载**（本会话内已用自测验证逻辑正确）。
+
+**残留缺口（如实记）**：无机制能强制改写模型输出的字；Stop 钩子是事后"检测+逼重答"，补丁是追加而非干净前置。极端情况仍可能漏，但一定被记账。
+
+---
+
 ## 🟢 题材化提示词学习系统（diff 驱动 · 按题材累积 · 可毕业固化）
 
 **需求/痛点**：当前"出提示词→评审→沉淀"太零散；缺少按题材积累、从 diff 提炼规则、成熟后固化的闭环。
@@ -67,14 +86,31 @@
 - [x] reoptimize 带反馈时再 append 一条 compare_feedback(user_judgment+user_rewrite)，不改旧行(append-only)
 - [x] 真实接口验收链路全通过(system_gen open / 负面review open / adopt satisfied / 采用版入档 / 去重)
 
-**下一步（第②③层）**：
+**第②层 RAG 落地方案（2026-06-19 讨论拍板）**：
+- **认知澄清**：现有"历史参考注入"(analysis.service.js:276 `CaseModel.findSimilar`)是**空壳**——
+  注入的"核心经验"句是**写死的固定字符串**，对任何视频都一样，没从真实 diff 学任何东西。
+  第②层的本质 = 把这段硬编码鸡汤，换成从真实评审记录提炼的活经验。
+- **✅ 决策1 推进顺序 = 先攒数据再建**：当前库里仅 2 条 system_gen，0 条 adopt/review/compare_feedback。
+  RAG 无数据=空转。先回归打磨主线让第①层自动攒真实样本；某题材攒够 **3-5 条**后再建第②层，一上线就有真经验。
+- **✅ 决策2 技术路线 = 轻量规则注入**（**不上向量库**）：
+  6维题材指纹结构化匹配(精确→粗粒度回退) + 一次 LLM 把同题材历史 diff **蒸馏**成几条活规则 → 注入 generateDoubaoPrompts，
+  替换现有空壳 similarCasesNote。向量 embedding 留作数据攒到几百条后的升级方向（避免过度工程）。
+- **建设要点（待启动时落地）**：
+  · 检索键：用 `topic_fingerprint`(6维)，无命中则放宽到粗粒度(地点+人数+道具)回退
+  · 取数：正样本 adopt(user_rewrite) + 修正 user_review(reason) + **负样本 compare_feedback(user_judgment，"别这样")**
+  · 提炼：一次 LLM 蒸馏，可选缓存进 topic_rules 表(有新满意样本才重炼，省调用)
+  · 触发门槛：题材样本数达标才注入，未达标退回现有写法
+
+**下一步（第②③层，按上方拍板顺序执行）**：
+- [ ] **【当前】回归打磨主线攒真实样本**：上传视频→出词→评审/采用/对比反馈，养第①层数据
+- [ ] 第②层(轻量规则注入)：某题材攒够 3-5 条后启动；listByFingerprint 提炼活规则 → 注入(替换空壳)
 - [ ] diff_a 文本计算(可选硬化：提示词编辑PUT时记 system vs rewrite 的结构化diff；现已存两侧文本可派生)
-- [ ] 第②层：listByFingerprint 提炼活规则 → 注入提示词生成(替代/增强现 RAG)
 - [ ] 第③层：evolution 扫描按 occurrences 提议毕业(用户确认) → 固化题材模块
 - [ ] source_video_hash 硬化(occurrences 更严格去重)
 
 **现状**：🟢 第①层地基完整(system_gen/user_review/adopt/compare_feedback 四类抓取点全部就位且验收通过)；
-真实数据待用户跑(满意→adopt，不满意→上传对比→compare_feedback)；第②层 RAG 等真实样本后启动。
+🟡 第②层方案已拍板(轻量规则注入+先攒数据)，**等某题材攒够 3-5 条真实样本后启动**；
+真实数据待用户跑(满意→adopt，不满意→上传对比→compare_feedback)。
 
 ---
 

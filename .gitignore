@@ -57,3 +57,6 @@ docs/liblib-raw.txt
 # 参考资料（借鉴用，不进主仓；要集成某部分再单独拿）
 _reference/
 产品经理技能包 4.0/
+
+# 活状态锚点违规审计日志（运行时台账，不进库）
+.claude/anchor-violations.log
