@@ -60,3 +60,8 @@ _reference/
 
 # 活状态锚点违规审计日志（运行时台账，不进库）
 .claude/anchor-violations.log
+
+# 视频文件不进库（分析/去字幕的素材，体积大）
+*.mp4
+*.mov
+*.mkv

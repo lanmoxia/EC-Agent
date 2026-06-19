@@ -15,6 +15,45 @@
 
 ---
 
+## 🟡 视频去硬字幕功能（用户新需求，2026-06-19 讨论中）
+
+**需求**：用户上传视频 → 消除字幕。痛点"去字幕非常难"——多为**硬字幕(烧进像素)**，非删字幕轨。
+
+**已查实**：
+- 本质 = AI inpainting（检测字幕区→遮罩→重绘背景），非简单删除。ffmpeg 只能粗暴模糊/遮盖(delogo/crop)，不是真去除。
+- 最佳开源方案 = **video-subtitle-remover (VSR, YaoFANGUK)**：PaddleOCR 检测 + STTN/LAMA/ProPainter 修复，100% 本地、无第三方 API、无损分辨率。
+- 本机条件够：GPU RTX5050(8GB) / Python3.10.11 / pip23 / ffmpeg8.1.1。
+
+**风险/待定**：
+- RTX5050 是全新 Blackwell(50系)，paddle/torch 的 CUDA 支持可能要特定/较新版本，最坏退 CPU(慢)——**主风险，需实测**。
+- 质量非 100%：固定位+简单背景(用户典型小区/室内场景)通常干净；复杂/运动背景可能涂抹。
+- 落地形式待定：①先装VSR+实测一条真实视频(推荐,先de-risk) ②整合进Web新任务类型 ③仅帮装自用。
+
+**de-risk 发现（2026-06-19）**：
+- ✅ 作者**官方支持 50 系显卡**：README 明确 `# Nvidia 50系显卡` 用 cuda-12.8 版（预编译.7z + Docker镜像 `eritpchy/video-subtitle-remover:1.4.0-cuda12.8`）。Blackwell 兼容风险已由作者解决。
+- ✅ VSR 源码已克隆到 `E:/video-subtitle-remover`（1.7G）。驱动支持 CUDA 13.3。
+- ❌ GitHub release **只有 CPU 安装包**（Win CPU 731MB / mac 961MB）；**GPU 预编译.7z 仅在网盘**（需用户手动下，多 G）。
+- ✅ 本机 Docker 29.5.3 已装并运行 → Docker cuda-12.8 镜像是**可全程自动化的 GPU 路径**（需先验 WSL2 GPU 直通）。
+- ⚠️ 预编译包/源码装都要 Python 3.12（本机 3.10）；Docker 路径自带环境，绕过。
+
+**三条候选路径**：① Docker cuda-12.8 镜像(可自动化GPU，先150MB小镜像验GPU直通再拉大镜像) ② 网盘.7z(用户手动下) ③ CPU安装包731MB(直下、慢、仅验质量)。
+
+**已选路径**：Docker GPU 镜像 `eritpchy/video-subtitle-remover:1.4.0-cuda12.8`（用户 2026-06-19 选定）。
+
+**已完成 de-risk**：
+- ✅ WSL2 GPU 直通验证通过（容器内 `nvidia-smi` 见 RTX5050）——Blackwell + 直通双风险清除。
+- ✅ VSR 源码克隆 `E:/video-subtitle-remover`；视频样本就位 `E:/desub/in.mp4`（doubao_video_2，720×1280/10s）。
+- ⏸ GPU 镜像拉取中途**暂停**（用户"有空再搞"）；Docker 已缓存大部分层，`docker pull` 续下即可。
+
+**恢复步骤（下次接力直接照做）**：
+1. `docker pull eritpchy/video-subtitle-remover:1.4.0-cuda12.8`（续完剩余大层）
+2. `docker run --rm --gpus all -v E:/desub:/data eritpchy/video-subtitle-remover:1.4.0-cuda12.8 python backend/main.py -i /data/in.mp4 -o /data/out.mp4`
+3. 看 `E:/desub/out.mp4` 擦前/擦后质量 → 决定整合形式（CLI/Web）
+
+**现状**：⏸ 暂停（最大风险已通过，等用户有空续跑镜像拉取 + 真实视频实测）。
+
+---
+
 ## ✅ 活状态锚点系统（防上下文漂移 · 取代"每句 lanmoxia"）
 
 **背景/痛点**：旧规则"每句回复第一行输出 lanmoxia"是埋在 CLAUDE.md 里的静态文本，会话一长被压到下方、注意力衰减就漏；且静态口令证明不了"真在跟踪上下文"（跑偏也能机械吐出）。

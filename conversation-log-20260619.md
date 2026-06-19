@@ -58,3 +58,14 @@
 - 五年级(1).mp4 提示词仍待磨（旧待办）
 - 第②层RAG：等真实样本；source_video_hash硬化、diff_a文本计算（可选）
 - SessionStart钩子可加"题材数据进度监控"(每窗口自动数各题材样本数，达标喊话)——上次提过，未做
+
+## 视频去硬字幕功能（de-risk，暂停待续）
+- 需求：用户上传视频→消除字幕（硬字幕=烧进像素，需 AI inpainting 重绘背景，非删字幕轨）
+- 选定方案：开源 video-subtitle-remover(VSR)，**Docker GPU 路径**（用户选）
+- de-risk 结果：
+  · ✅ RTX5050(Blackwell) 官方支持(cuda-12.8/50系)；**WSL2 GPU 直通实测通过**(容器内见显卡)——最大风险清除
+  · GitHub release 只有 CPU 包；GPU 包仅网盘；故走 Docker 镜像 eritpchy/...1.4.0-cuda12.8(可自动化)
+  · VSR 源码克隆 E:/video-subtitle-remover；视频样本 E:/desub/in.mp4(doubao_video_2,720x1280/10s)
+- 暂停点：用户"有空再搞"，镜像拉取中途停(Docker 缓存层，续下即可)
+- 恢复：见 DECISIONS.md「视频去硬字幕」恢复步骤(docker pull 续 → docker run 挂 E:/desub 跑 backend/main.py → 看擦前后)
+- 注：*.mp4/*.mov/*.mkv 已加 gitignore(避免视频进库)
