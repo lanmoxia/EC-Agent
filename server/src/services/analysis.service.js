@@ -579,7 +579,24 @@ ${comparisonReport}
 只输出差异列表，不要总结或前言。`;
 
   const result = await callDashScope([{ type: "text", text: prompt }], { maxTokens: 600 });
-  return result.trim();
+  const failureAnalysis = result.trim();
+
+  // 实验档案：B层 diff_b。append 一条 compare_feedback（problem_report+diff_b+system_prompt）。
+  // user_judgment 此时还没有(主观反馈在 reoptimize 时才传)，先空；append-only，不改旧行。
+  try {
+    const task = TaskModel.findById(report.task_id) || {};
+    ExperimentModel.create({
+      reportId, taskId: report.task_id, videoName: task.video_name,
+      topicFingerprint: task.topic_fingerprint, platform: task.platform || "douban",
+      kind: "compare_feedback",
+      systemPrompt: report.doubao_prompt || null,
+      problemReport: comparisonReport,
+      diffB: failureAnalysis,
+      userJudgment: null,
+    });
+  } catch { /* 不影响对比主流程 */ }
+
+  return failureAnalysis;
 }
 
 // ── 提示词重新生成（用户主导优化） ──────────────────────────────
@@ -587,6 +604,7 @@ ${comparisonReport}
 async function reoptimize(reportId, { failureAnalysis, userFeedback }) {
   const report = ReportModel.findById(reportId);
   if (!report) throw Object.assign(new Error("报告不存在"), { status: 404 });
+  const oldPrompt = report.doubao_prompt || null;  // 优化前的提示词（diffB 的系统侧）
 
   const prompt = `你是豆包 Seedance 提示词专家，请输出一份修正后的提示词（约100字，自然白话叙事，不写禁词）。
 
@@ -608,6 +626,24 @@ ${userFeedback || "（无）"}
 只输出提示词正文，不要解释。`;
 
   const newPrompt = await callDashScope([{ type: "text", text: prompt }], { maxTokens: 500 });
+
+  // 实验档案：带主观反馈时，再 append 一条 compare_feedback（user_judgment=用户反馈）。
+  // 不 UPDATE 之前那条 diff_b 行，保持 append-only。
+  if (userFeedback && userFeedback.trim()) {
+    try {
+      const task = TaskModel.findById(report.task_id) || {};
+      ExperimentModel.create({
+        reportId, taskId: report.task_id, videoName: task.video_name,
+        topicFingerprint: task.topic_fingerprint, platform: task.platform || "douban",
+        kind: "compare_feedback",
+        systemPrompt: oldPrompt,
+        diffB: failureAnalysis || null,
+        userJudgment: userFeedback.trim(),
+        userRewrite: newPrompt.trim(),  // 反馈驱动重写后的提示词
+      });
+    } catch { /* 不影响重生成主流程 */ }
+  }
+
   return ReportModel.update(reportId, { doubaoPrompt: newPrompt.trim() });
 }
 

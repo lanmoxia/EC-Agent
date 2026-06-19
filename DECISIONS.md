@@ -62,13 +62,19 @@
 - [x] P2 开场重排：voiceover-entry 优先，called-turn 只管无入画的回头
 - [x] P2 occurrences 改按 video_name 去重(同视频重分析不灌水)；source_video_hash 留作后续硬化
 
-**下一步（第①层补全 + 第②③层）**：
-- [ ] 抓取点④对比+反馈→compare_feedback行(diff_b+user_judgment)
-- [ ] diff_a 计算：提示词编辑(PUT)时记 user_rewrite + 系统vs重写的diff
+**已完成（diff_b 抓取，本轮）**：
+- [x] 抓取点④对比→compare_feedback行：compareAnalyze append(problem_report+diff_b+system_prompt，user_judgment先空)
+- [x] reoptimize 带反馈时再 append 一条 compare_feedback(user_judgment+user_rewrite)，不改旧行(append-only)
+- [x] 真实接口验收链路全通过(system_gen open / 负面review open / adopt satisfied / 采用版入档 / 去重)
+
+**下一步（第②③层）**：
+- [ ] diff_a 文本计算(可选硬化：提示词编辑PUT时记 system vs rewrite 的结构化diff；现已存两侧文本可派生)
 - [ ] 第②层：listByFingerprint 提炼活规则 → 注入提示词生成(替代/增强现 RAG)
 - [ ] 第③层：evolution 扫描按 occurrences 提议毕业(用户确认) → 固化题材模块
+- [ ] source_video_hash 硬化(occurrences 更严格去重)
 
-**现状**：🟢 第①层地基已建成跑通；剩 diff 计算 + 第②③层待续。
+**现状**：🟢 第①层地基完整(system_gen/user_review/adopt/compare_feedback 四类抓取点全部就位且验收通过)；
+真实数据待用户跑(满意→adopt，不满意→上传对比→compare_feedback)；第②层 RAG 等真实样本后启动。
 
 ---
 
