@@ -27,6 +27,18 @@
 - 验证：Vite HMR 两次更新无报错，`index.css` 跟着重生成 → 证明 sky 动态类被 Tailwind 扫到并生效；localStorage 旧标注向后兼容（纯增量）
 - 用户看过确认 OK → 提交
 
+## 账号队列：自动扫描确认 + 新增「重命名」功能
+- 用户连续新建 2 个 Edge Profile 登豆包号 → 确认**号队列后端实时扫** `Local State`，无需手动加，刷新页面即出按钮
+  · 第 6 个 Profile 5 初始为 Edge 默认占位名"用户配置 1"；用户在 Edge 里改名"梦茹号"后**后端已即时读到**（curl 验证），之前没显示只是**页面没刷新**
+- 用户提需求：想在页面上直接改标签名（不想每次去 Edge 改+刷新）→ AskUserQuestion 确认存 **localStorage**（用户选）
+- 实现（`client/src/components/business/EdgeDoubaoLauncher.vue` 一个文件，纯前端）：
+  · 显示名改用 `nameOf(p)=labelMap[dir]||p.name`（**自定义优先，Edge 原名兜底**）
+  · 悬浮菜单底部加「标签名」区：**重命名**(window.prompt) / **恢复默认**(设过自定义名才显示)
+  · 标签存 localStorage `ec-doubao-acct-label`（按 Profile dir），与额度状态同套路；输入留空或填回原名=恢复默认
+  · 引入 Pencil/RotateCcw 图标；Vite HMR 验证无报错
+- 两条改名路并存：① Edge 改名+刷新页面(后端自动读) ② 页面「重命名」(不碰 Edge，立即生效)
+- 提交：见 commit（下班前推送）
+
 ## 待办（延续）
 - 提示词打磨主线：上传视频→出词→评审，攒题材样本（某题材 3-5 条启第②层 RAG）
 - 五年级(1).mp4 提示词待磨
