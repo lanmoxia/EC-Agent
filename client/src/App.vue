@@ -22,6 +22,13 @@
             上传
           </router-link>
           <router-link
+            to="/feed"
+            class="text-muted-foreground transition-colors hover:text-foreground"
+            active-class="text-foreground font-medium"
+          >
+            投喂
+          </router-link>
+          <router-link
             to="/history"
             class="text-muted-foreground transition-colors hover:text-foreground"
             active-class="text-foreground font-medium"

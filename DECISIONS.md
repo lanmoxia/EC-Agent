@@ -15,6 +15,51 @@
 
 ---
 
+## 🟡 投喂成功提示词（用户主动反馈入口，2026-06-21 讨论中）
+
+**需求/背景**：用户日常做视频很忙，会把**做成功**的提示词投喂回来沉淀。一条素材含：提示词(豆包或可灵) + 对标视频 + 用户用该提示词生成的视频。痛点＝忙时只有时间贴提示词，没时间传两个视频 → **提示词先交，视频later在历史记录里补**。
+
+**架构定位（关键）**：这正是题材系统**第②层 RAG 等的"正样本数据源"**（DECISIONS 里"等某题材攒够3-5条真实样本"）。不做孤立功能，要接进学习系统：消费者有两个——①**我(Claude 对话里)** 直接读这些投喂学习 ②**站内第②层 RAG**（需 experiments 行 + 题材指纹）。
+
+**已查实（现有结构）**：
+- 首次上传入口＝HomeView 两张折叠卡(豆包/可灵)各内嵌 `VideoUploader`(拖拽+参考图+台词)。
+- 顶部导航仅「上传 / 历史记录」(App.vue)；路由 `/`、`/tasks/:id`、`/history`。
+- `experiments` 表是 **append-only**(Codex 评审反复强调，不可改行)；现 kind：system_gen/user_review/adopt/compare_feedback。
+- 视频文件走 multer 存上传目录(同 tasks)。
+
+**已定决策（2026-06-21 与用户讨论拍板）：先干净解耦收集，后期再整合**
+- 理由：现有 4 套反馈(experiments/reviews/feedback/cases)全是"**系统分析→用户反应**"闭环、挂 report_id；本功能是**反方向**(用户从外部带成功提示词+视频，无分析任务、无report_id、生命周期是先交后补)。硬塞 experiments 要处处特判 → 乱。
+- **更关键**：整合目标"第②层 RAG"**现在还没建**(等攒数据)，现在 emit 是耦合不存在的消费者 = 过早优化。
+- 现有 4 套反馈机制清单：experiments(append-only账本:system_gen/user_review/adopt/compare_feedback) · reviews(人工评审) · feedback(好/一般/太差) · cases(RAG空壳)。
+
+**落地方案（先收集，物理隔离）**：
+- **后端**：自包含**可变表 `prompt_feedings`**：id/platform/prompt_text/target_video_path/generated_video_path/note/status(prompt_only|complete)/created_at/updated_at。
+  - 加 2 个**未来桥接钩子列**(先留空不填)：`topic_fingerprint`、`linked_experiment_id` —— 等第②层动工再设计 emit/迁移，一行 ALTER 即接上，现在不损失。
+  - **不**碰 experiments、**不**自动分析、**不**算指纹。短期消费者＝**我(Claude 对话直接读)**。
+  - 路由 POST/GET/GET:id/PATCH:id。
+- **前端**：新导航「投喂」+ 路由 `/feed`：上＝豆包/可灵 tab + 提示词框 + 提交(prompt-only 即存)；下＝可选两 tab 视频上传(对标/生成，复用 VideoUploader UI，可跳过)。历史投喂记录点进去补/换两视频。
+
+**剩余小岔路（已定 2026-06-21）**：
+3. ✅ **投喂列表** = `/feed` 页自带列表(自包含，与现有历史隔离)。点列表项进详情补/换两视频。
+4. ✅ **提示词输入按平台分**：豆包＝单文本框(一段)；可灵＝**多分镜框 + 「添加分镜」按钮**(点一下出一个框，可加镜)。
+   → 落库 prompt 需按平台分结构：豆包存整段；可灵存**分镜数组**(prompt_json) + 拍平文本(prompt_text 供我读/展示)。
+- (岔路1自动分析深度、岔路2落库方式：已被"先解耦收集"决策吸收——v1 不分析、独立表不 emit。)
+
+**最终落地清单（待用户放行开建）**：
+- 后端：① db.js 加 `prompt_feedings` 表(id/platform/prompt_text/prompt_json/target_video_path/generated_video_path/note/status/created_at/updated_at + 留空桥接列 topic_fingerprint/linked_experiment_id) ② `feeding.model.js`(CRUD) ③ `feedings.route.js`(POST 建/GET 列表/GET:id/PATCH:id 补视频) + app.js 挂载 ④ multer 复用上传目录。
+- 前端：① 路由 `/feed` + App.vue 导航加「投喂」 ② `FeedView.vue`(上:豆包/可灵 tab+提示词输入[豆包单框/可灵多分镜+添加按钮]+提交; 下:可选两 tab 视频上传复用 VideoUploader; 底:投喂列表带状态徽章) ③ `FeedDetailView.vue` 或弹层(补/换对标+生成视频) ④ `feedings.api.js`。
+
+**已建成（2026-06-22，本轮"稳健推行"）**：
+- 后端：db `prompt_feedings` 表(含 2 桥接列留空) + `feeding.model.js`(create/list/findById/update,自动算 status) + `feedings.route.js`(POST/GET/GET:id/PATCH:id, multer 双视频字段 targetVideo/generatedVideo) + app.js 挂载 `/api/feedings`。
+- 前端：`VideoPicker.vue`(共享拖拽选视频) + `feedings.api.js` + 路由 `/feed`、`/feed/:id` + App.vue 导航「投喂」 + `FeedView.vue`(豆包单框/可灵多分镜+「添加分镜」+可选两 tab 视频+备注+提交+列表) + `FeedDetailView.vue`(只读提示词+补/换两视频+状态自动转 complete)。
+- 验收：后端 curl 建/列表/补视频全过；中文 UTF-8 直读 DB 确认(之前乱码=Git Bash curl -F 编码问题，非服务端)；client lint 0 错 + `npm run build` 全编译过；经 :5173 代理 E2E 建一条通过；测试数据已清空。
+
+**待续(未来，不阻塞)**：第②层动工时经桥接列 topic_fingerprint/linked_experiment_id 设计"投喂→题材账本"整合；uploads 静态服务以便页内预览视频(现仅存+显示文件名)。
+
+**现状**：🟢 已建成跑通(独立收集，物理隔离现有体系)；等用户实测使用，整合留待第②层。
+
+---
+
 ## 🟡 视频去硬字幕功能（用户新需求，2026-06-19 讨论中）
 
 **需求**：用户上传视频 → 消除字幕。痛点"去字幕非常难"——多为**硬字幕(烧进像素)**，非删字幕轨。

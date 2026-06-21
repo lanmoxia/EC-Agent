@@ -116,6 +116,29 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_experiments_created ON experiments(created_at DESC);
 `);
 
+// 投喂成功提示词表（用户主动反馈入口；独立可变表，不碰 experiments 账本）
+// 先干净收集，后期第②层动工时再经桥接列(topic_fingerprint/linked_experiment_id)整合
+db.exec(`
+  CREATE TABLE IF NOT EXISTS prompt_feedings (
+    id                   TEXT    PRIMARY KEY,
+    platform             TEXT    NOT NULL DEFAULT 'douban',      -- douban / kling
+    prompt_text          TEXT    NOT NULL,                       -- 拍平文本(豆包整段/可灵分镜拼接)，供 Claude 读+展示
+    prompt_json          TEXT,                                   -- 可灵分镜数组 JSON（豆包为 null）
+    target_video_path    TEXT,                                   -- 对标视频（later 补）
+    target_video_name    TEXT,
+    generated_video_path TEXT,                                   -- 用该提示词生成的视频（later 补）
+    generated_video_name TEXT,
+    note                 TEXT,                                   -- 用户备注（可选）
+    status               TEXT    NOT NULL DEFAULT 'prompt_only', -- prompt_only / complete
+    topic_fingerprint    TEXT,                                   -- 桥接钩子（先留空，第②层整合用）
+    linked_experiment_id TEXT,                                   -- 桥接钩子（先留空，第②层整合用）
+    created_at           INTEGER NOT NULL,
+    updated_at           INTEGER NOT NULL
+  );
+  CREATE INDEX IF NOT EXISTS idx_feedings_created ON prompt_feedings(created_at DESC);
+  CREATE INDEX IF NOT EXISTS idx_feedings_platform ON prompt_feedings(platform);
+`);
+
 // 迁移：为旧数据库补列（幂等）
 for (const col of [
   "ALTER TABLE tasks ADD COLUMN ref_images_json TEXT",

@@ -22,6 +22,18 @@ const router = createRouter({
       component: () => import("@/views/HistoryView.vue"),
       meta: { title: "历史记录" },
     },
+    {
+      path: "/feed",
+      name: "feed",
+      component: () => import("@/views/FeedView.vue"),
+      meta: { title: "投喂提示词" },
+    },
+    {
+      path: "/feed/:id",
+      name: "feed-detail",
+      component: () => import("@/views/FeedDetailView.vue"),
+      meta: { title: "投喂详情" },
+    },
   ],
 });
 
