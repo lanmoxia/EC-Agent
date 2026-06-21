@@ -67,23 +67,26 @@ defineProps({
 defineEmits(["open", "open-default"]);
 
 // 状态定义
-const STATUS_ORDER = ["normal", "update", "empty"];
+const STATUS_ORDER = ["normal", "updated", "update", "empty"];
 const STATUS_LABEL = {
-  normal: "正常",
-  update: "待更新额度",
-  empty:  "额度用完",
+  normal:  "正常",
+  updated: "额度已更新",
+  update:  "待更新额度",
+  empty:   "额度用完",
 };
-// 按钮整体配色（绿/黄/红）
+// 按钮整体配色（绿/蓝/黄/红）
 const STATUS_STYLE = {
-  normal: "border-emerald-500/40 bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20",
-  update: "border-amber-500/40 bg-amber-500/10 text-amber-400 hover:bg-amber-500/20",
-  empty:  "border-red-500/40 bg-red-500/10 text-red-400 hover:bg-red-500/20",
+  normal:  "border-emerald-500/40 bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20",
+  updated: "border-sky-500/40 bg-sky-500/10 text-sky-400 hover:bg-sky-500/20",
+  update:  "border-amber-500/40 bg-amber-500/10 text-amber-400 hover:bg-amber-500/20",
+  empty:   "border-red-500/40 bg-red-500/10 text-red-400 hover:bg-red-500/20",
 };
 // 状态圆点色
 const STATUS_DOT = {
-  normal: "bg-emerald-400",
-  update: "bg-amber-400",
-  empty:  "bg-red-400",
+  normal:  "bg-emerald-400",
+  updated: "bg-sky-400",
+  update:  "bg-amber-400",
+  empty:   "bg-red-400",
 };
 
 const hover = ref(null);
