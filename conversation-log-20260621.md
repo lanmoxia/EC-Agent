@@ -67,9 +67,24 @@
 - ⚠ 已知限制：AI报告/人看摘要正文在 `max-h-[600px]` 内层滚动框里，只记整页滚动、不记框内位置；其余 3 tab 整页流式完全 OK。用户暂保留小框现状(未采纳去掉内层框统一整页滚)
 - 三处均 eslint exit0 + Vite HMR 无报错；用户实测"很流畅"
 
+## 深夜（跨 06-22）：投喂成功提示词功能（讨论→建成→推送，commit 1671b4e）
+
+### 讨论定方案（关键架构决策）
+- 需求：用户日常忙，把**做成功**的提示词(豆包/可灵)喂回沉淀，含 提示词+对标视频+生成视频；忙时只交提示词，视频later在列表补。
+- 用户提关键顾虑："现有提示词反馈这块会不会很乱？要不要先分开存储后期整合？" → 一起梳理现有 **4 套反馈全是分析驱动**(experiments append-only账本 / reviews / feedback / cases)，都挂 report_id。
+- **拍板：先干净解耦收集，后期整合**。理由①本功能是反方向(用户从外部带成功提示词，无分析任务/report_id，先交后补)硬塞要处处特判 ②整合目标第②层RAG**还没建**，现在emit=耦合不存在的消费者=过早优化。
+- 剩余小岔路定：列表放 /feed 页自带(自包含)；提示词输入＝豆包单框 / **可灵多分镜+「添加分镜」按钮**。
+
+### 建成（稳健推行，全程验收）
+- 后端：db `prompt_feedings` 独立可变表(platform/prompt_text/prompt_json/对标+生成视频path&name/note/status + **2桥接列 topic_fingerprint/linked_experiment_id 留空**) + `feeding.model.js`(create/list/findById/update，按两视频齐全自动算 prompt_only/complete) + `feedings.route.js`(POST/GET/GET:id/PATCH:id，multer 双字段 targetVideo/generatedVideo，中文名 latin1→utf8) + app.js 挂载 /api/feedings。
+- 前端：`VideoPicker.vue`(共享拖拽选视频) + `feedings.api.js` + 路由 /feed、/feed/:id + 导航「投喂」 + `FeedView.vue`(豆包单框/可灵多分镜+添加分镜/可选两 tab 视频/备注/提交/列表带状态徽章) + `FeedDetailView.vue`(只读提示词+补/换两视频，齐了自动转 complete)。
+- 验收：后端 curl 建/列表/补视频全过；中文乱码查实=Git Bash curl -F 编码问题，**DB 直读确认 UTF-8 存储正常**；client lint 0错 + `npm run build` 1576模块全编译过；经 :5173 代理 E2E 通过；测试数据已清空。用户："UI 正常，功能后续再测"。
+- 架构守住：与现有体系**物理隔离**，整合留第②层动工时经桥接列设计。详见 DECISIONS.md(🟢 已建成)。
+
 ## 待办（延续）
+- **投喂功能用户实测**（UI已确认正常，功能待用户跑真实数据）
 - 提示词打磨主线：上传视频→出词→评审，攒题材样本（某题材 3-5 条启第②层 RAG）
 - 五年级(1).mp4 提示词待磨
 - VSR 去字幕：镜像拉取续 + 实测（暂停中，见 DECISIONS）
 - (可选)报告 AI/人看摘要内层 600px 滚动框是否去掉统一整页滚——用户待定
-- DECISIONS.md 题材①层"下一步"里抓取点④可标记已完成(远程 8c375bd 已做)
+- (未来)第②层动工时设计"投喂→题材账本"整合 + uploads 静态服务供页内预览视频
