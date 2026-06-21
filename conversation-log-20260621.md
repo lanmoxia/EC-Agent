@@ -39,7 +39,37 @@
 - 两条改名路并存：① Edge 改名+刷新页面(后端自动读) ② 页面「重命名」(不碰 Edge，立即生效)
 - 提交：见 commit（下班前推送）
 
+## 晚间（回家·重装机后）：环境恢复 + 3 处前端体验优化
+
+### 重装系统导致的两处"丢失"（同一病根：本机用户数据被清空）
+- **SSH 推送失败**：启动钩子 `git pull` 报 `Host key verification failed` → 根因 `~/.ssh` 被清空、无 key
+  · 生成 ed25519 key（`-N ""` 无密码，自动 pull 钩子不卡密码）→ 用户把公钥加到 GitHub → `Hi lanmoxia!` 认证过
+  · 顺带设 git 全局身份（原来空）：`lanmoxia` / `mrli2902933052@gmail.com`
+  · 分叉(ahead1/behind5) → rebase 到 origin，`prompt-experiments.md` append-only 冲突两条记录都保留(按日期排) → push `3e077b3`
+  · 远程已含别处推的工作：`8c375bd`(题材①层收尾 diff_b/compare_feedback——抓取点④原来已做完)、`d34c863`(活状态锚点系统取代每句lanmoxia)
+- **豆包账户只剩 1 个且未登录**：账户列表＝Edge 本机 Profile(`system.route.js` 读 `Local State`)，**不进 db/git、不随 pull 同步**
+  · curl `/api/system/edge-profiles` 证实现在只剩 `Default`；重装清空了 `AppData\...\Edge\User Data`
+  · 关键澄清：**代码靠 git 跨机器，账户登录靠 Edge 同步(微软账号)跨机器，两套独立**；豆包号本身在云端没丢，重新登/开 Edge 同步即可
+
+### 优化①：重命名改内联可编辑（修 VSCode 弹窗失效）
+- 现象：`window.prompt` 在真浏览器能弹、在 **VSCode 内嵌浏览器(webview)被禁** → 像"摆设"
+- 改 `EdgeDoubaoLauncher.vue`：`window.prompt` → 纯 DOM 内联输入框 + 内联保存确认气泡
+  · 点重命名→标签变选中可编辑 input(v-focus 自动全选)；Enter/失焦→"保存为 xxx？[保存][取消]"；Esc/取消→恢复原名；无改动直接退
+- 原则：别用宿主环境原生弹窗(prompt/alert/confirm)，自己画 UI 即跨环境一致，无需多套兼容
+
+### 优化②：报告 Tab 刷新记忆
+- `ReportViewer.vue`：`activeTab` 从 `ref("ai")` 改为按 **报告id** 读 localStorage(`ec-report-tab:{id}`)初始化 + watch 持久化
+- 5 个 tab 刷新都停在原 tab，不跳回 AI 报告
+
+### 优化③：滚动位置记忆 + 返回顶部按钮
+- 滚动记忆：按 **报告id+tab** 存 `window.scrollY`(`ec-report-scroll:{id}:{tab}`)，刷新/切 tab 回到原区域；150ms 防抖 + beforeunload/onUnmounted 兜底
+- 返回顶部：右下角固定圆钮(ArrowUp)，下滚 >300px 淡入，点击平滑回顶
+- ⚠ 已知限制：AI报告/人看摘要正文在 `max-h-[600px]` 内层滚动框里，只记整页滚动、不记框内位置；其余 3 tab 整页流式完全 OK。用户暂保留小框现状(未采纳去掉内层框统一整页滚)
+- 三处均 eslint exit0 + Vite HMR 无报错；用户实测"很流畅"
+
 ## 待办（延续）
 - 提示词打磨主线：上传视频→出词→评审，攒题材样本（某题材 3-5 条启第②层 RAG）
 - 五年级(1).mp4 提示词待磨
 - VSR 去字幕：镜像拉取续 + 实测（暂停中，见 DECISIONS）
+- (可选)报告 AI/人看摘要内层 600px 滚动框是否去掉统一整页滚——用户待定
+- DECISIONS.md 题材①层"下一步"里抓取点④可标记已完成(远程 8c375bd 已做)

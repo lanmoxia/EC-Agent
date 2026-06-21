@@ -8,59 +8,112 @@
         v-for="p in profiles"
         :key="p.dir"
         class="relative"
-        @mouseenter="hover = p.dir"
+        @mouseenter="editing === p.dir ? null : (hover = p.dir)"
         @mouseleave="hover = null"
       >
-        <!-- 账户按钮（点本体=打开豆包），颜色随状态 -->
-        <button
-          class="flex items-center gap-1 rounded-md border px-2.5 py-1 text-xs font-medium transition-colors"
-          :class="STATUS_STYLE[statusOf(p.dir)]"
-          :title="`账号「${nameOf(p)}」· ${STATUS_LABEL[statusOf(p.dir)]} · 点击用此账号打开豆包`"
-          @click="$emit('open', p.dir)"
-        >
-          <span class="inline-block h-1.5 w-1.5 rounded-full" :class="STATUS_DOT[statusOf(p.dir)]" />
-          {{ nameOf(p) }}
-        </button>
+        <!-- ===== 编辑态：标签变内联输入框（不依赖原生弹窗，VSCode 内嵌浏览器也可用）===== -->
+        <template v-if="editing === p.dir">
+          <!-- 输入框：自动聚焦并全选；Enter/失焦→询问保存；Esc→取消 -->
+          <input
+            v-if="!confirming"
+            v-focus
+            v-model="editValue"
+            type="text"
+            class="w-28 rounded-md border border-sky-500/60 bg-background px-2.5 py-1 text-xs font-medium text-foreground outline-none focus:border-sky-400"
+            @keydown.enter.prevent="askSave(p)"
+            @keydown.esc.prevent="cancelEdit"
+            @blur="askSave(p)"
+          />
 
-        <!-- 悬浮状态菜单（紧贴按钮，无间隙桥接，便于移入点击） -->
-        <div
-          v-show="hover === p.dir"
-          class="absolute right-0 top-full z-20 pt-1"
-        >
-          <div class="min-w-[120px] rounded-lg border border-border bg-card p-1 shadow-lg">
-            <p class="px-2 py-1 text-[10px] uppercase tracking-wider text-muted-foreground">设置额度状态</p>
-            <button
-              v-for="s in STATUS_ORDER"
-              :key="s"
-              class="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-xs transition-colors hover:bg-accent"
-              :class="statusOf(p.dir) === s ? 'font-semibold' : 'text-muted-foreground'"
-              @click="setStatus(p.dir, s)"
-            >
-              <span class="inline-block h-2 w-2 rounded-full" :class="STATUS_DOT[s]" />
-              {{ STATUS_LABEL[s] }}
-              <Check v-if="statusOf(p.dir) === s" class="ml-auto h-3 w-3 text-emerald-400" />
-            </button>
+          <!-- 待编辑名占位（确认阶段显示，避免输入框失焦反复触发）-->
+          <button
+            v-else
+            class="flex items-center gap-1 rounded-md border border-sky-500/40 bg-sky-500/10 px-2.5 py-1 text-xs font-medium text-sky-400"
+            disabled
+          >
+            {{ editValue }}
+          </button>
 
-            <!-- 自定义标签名（覆盖 Edge 原名，存本机 localStorage） -->
-            <div class="my-1 border-t border-border" />
-            <p class="px-2 py-1 text-[10px] uppercase tracking-wider text-muted-foreground">标签名</p>
-            <button
-              class="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-accent"
-              @click="rename(p)"
-            >
-              <Pencil class="h-3 w-3" />
-              重命名
-            </button>
-            <button
-              v-if="labelMap[p.dir]"
-              class="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-accent"
-              @click="resetName(p.dir)"
-            >
-              <RotateCcw class="h-3 w-3" />
-              恢复默认（{{ p.name }}）
-            </button>
+          <!-- 内联保存确认气泡 -->
+          <div
+            v-if="confirming"
+            class="absolute right-0 top-full z-30 pt-1"
+          >
+            <div class="min-w-[150px] rounded-lg border border-border bg-card p-2 shadow-lg">
+              <p class="px-1 pb-1.5 text-xs text-foreground">
+                保存为「<span class="font-semibold text-sky-400">{{ editValue }}</span>」？
+              </p>
+              <div class="flex gap-1.5">
+                <button
+                  class="flex-1 rounded-md border border-emerald-500/40 bg-emerald-500/10 px-2 py-1 text-xs font-medium text-emerald-400 transition-colors hover:bg-emerald-500/20"
+                  @click="confirmSave(p)"
+                >
+                  保存
+                </button>
+                <button
+                  class="flex-1 rounded-md border border-border px-2 py-1 text-xs text-muted-foreground transition-colors hover:bg-accent"
+                  @click="cancelEdit"
+                >
+                  取消
+                </button>
+              </div>
+            </div>
           </div>
-        </div>
+        </template>
+
+        <!-- ===== 正常态：账户按钮 + 悬浮菜单 ===== -->
+        <template v-else>
+          <!-- 账户按钮（点本体=打开豆包），颜色随状态 -->
+          <button
+            class="flex items-center gap-1 rounded-md border px-2.5 py-1 text-xs font-medium transition-colors"
+            :class="STATUS_STYLE[statusOf(p.dir)]"
+            :title="`账号「${nameOf(p)}」· ${STATUS_LABEL[statusOf(p.dir)]} · 点击用此账号打开豆包`"
+            @click="$emit('open', p.dir)"
+          >
+            <span class="inline-block h-1.5 w-1.5 rounded-full" :class="STATUS_DOT[statusOf(p.dir)]" />
+            {{ nameOf(p) }}
+          </button>
+
+          <!-- 悬浮状态菜单（紧贴按钮，无间隙桥接，便于移入点击） -->
+          <div
+            v-show="hover === p.dir"
+            class="absolute right-0 top-full z-20 pt-1"
+          >
+            <div class="min-w-[120px] rounded-lg border border-border bg-card p-1 shadow-lg">
+              <p class="px-2 py-1 text-[10px] uppercase tracking-wider text-muted-foreground">设置额度状态</p>
+              <button
+                v-for="s in STATUS_ORDER"
+                :key="s"
+                class="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-xs transition-colors hover:bg-accent"
+                :class="statusOf(p.dir) === s ? 'font-semibold' : 'text-muted-foreground'"
+                @click="setStatus(p.dir, s)"
+              >
+                <span class="inline-block h-2 w-2 rounded-full" :class="STATUS_DOT[s]" />
+                {{ STATUS_LABEL[s] }}
+                <Check v-if="statusOf(p.dir) === s" class="ml-auto h-3 w-3 text-emerald-400" />
+              </button>
+
+              <!-- 自定义标签名（覆盖 Edge 原名，存本机 localStorage） -->
+              <div class="my-1 border-t border-border" />
+              <p class="px-2 py-1 text-[10px] uppercase tracking-wider text-muted-foreground">标签名</p>
+              <button
+                class="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-accent"
+                @click="startRename(p)"
+              >
+                <Pencil class="h-3 w-3" />
+                重命名
+              </button>
+              <button
+                v-if="labelMap[p.dir]"
+                class="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-accent"
+                @click="resetName(p.dir)"
+              >
+                <RotateCcw class="h-3 w-3" />
+                恢复默认（{{ p.name }}）
+              </button>
+            </div>
+          </div>
+        </template>
       </div>
     </template>
 
@@ -84,6 +137,14 @@ defineProps({
   profiles: { type: Array, default: () => [] },
 });
 defineEmits(["open", "open-default"]);
+
+// 自动聚焦并全选输入框内容（点重命名时标签即为"选中可编辑"态）
+const vFocus = {
+  mounted(el) {
+    el.focus();
+    el.select();
+  },
+};
 
 // 状态定义
 const STATUS_ORDER = ["normal", "updated", "update", "empty"];
@@ -152,24 +213,53 @@ function saveLabels() {
 function nameOf(p) {
   return labelMap.value[p.dir] || p.name;
 }
-function rename(p) {
-  const cur = labelMap.value[p.dir] || p.name;
-  const input = window.prompt(`给账号「${p.name}」起个显示名：`, cur);
-  if (input === null) return;            // 取消
-  const v = input.trim();
-  if (!v || v === p.name) {
-    resetName(p.dir);                    // 清空或填回原名 = 恢复默认
-  } else {
-    labelMap.value = { ...labelMap.value, [p.dir]: v };
-    saveLabels();
-  }
-  hover.value = null;
-}
 function resetName(dir) {
   const next = { ...labelMap.value };
   delete next[dir];
   labelMap.value = next;
   saveLabels();
   hover.value = null;
+}
+
+// ===== 内联重命名（替代被 VSCode 内嵌浏览器屏蔽的 window.prompt）=====
+const editing = ref(null);     // 正在编辑的 Profile dir
+const editValue = ref("");     // 输入框当前文本
+const confirming = ref(false); // 是否处于"保存确认"步骤
+
+// 点「重命名」→ 进入编辑态，预填当前显示名并全选
+function startRename(p) {
+  editing.value = p.dir;
+  editValue.value = nameOf(p);
+  confirming.value = false;
+  hover.value = null;
+}
+// Enter / 失焦 → 询问是否保存（无改动则直接退出，不打扰）
+function askSave(p) {
+  if (editing.value !== p.dir || confirming.value) return;
+  const v = editValue.value.trim();
+  if (!v || v === nameOf(p)) {
+    cancelEdit();
+    return;
+  }
+  confirming.value = true;
+}
+// 确认保存：写入 localStorage 标签（填回 Edge 原名 = 恢复默认）
+function confirmSave(p) {
+  const v = editValue.value.trim();
+  if (v && v !== p.name) {
+    labelMap.value = { ...labelMap.value, [p.dir]: v };
+  } else {
+    const next = { ...labelMap.value };
+    delete next[p.dir];
+    labelMap.value = next;
+  }
+  saveLabels();
+  editing.value = null;
+  confirming.value = false;
+}
+// 取消：丢弃改动，恢复原名
+function cancelEdit() {
+  editing.value = null;
+  confirming.value = false;
 }
 </script>

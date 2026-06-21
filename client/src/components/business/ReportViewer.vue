@@ -622,12 +622,26 @@
       </Transition>
     </Teleport>
 
+    <!-- ── 返回顶部按钮（右下角固定，下滚超过一屏才出现） ──────────── -->
+    <Teleport to="body">
+      <Transition name="fade">
+        <button
+          v-if="showBackTop"
+          class="fixed bottom-6 right-6 z-40 flex h-11 w-11 items-center justify-center rounded-full border border-border bg-card text-muted-foreground shadow-lg transition-colors hover:bg-accent hover:text-foreground"
+          title="返回顶部"
+          @click="scrollTop"
+        >
+          <ArrowUp class="h-5 w-5" />
+        </button>
+      </Transition>
+    </Teleport>
+
   </div>
 </template>
 
 <script setup>
-import { ref, computed, watch, onMounted, nextTick } from "vue";
-import { Copy, CheckCheck, ThumbsDown, ExternalLink, Pencil, RefreshCw } from "lucide-vue-next";
+import { ref, computed, watch, onMounted, onUnmounted, nextTick } from "vue";
+import { Copy, CheckCheck, ThumbsDown, ExternalLink, Pencil, RefreshCw, ArrowUp } from "lucide-vue-next";
 import Badge from "@/components/ui/Badge.vue";
 import EdgeDoubaoLauncher from "@/components/business/EdgeDoubaoLauncher.vue";
 import { reportsApi } from "@/api/reports.api";
@@ -647,8 +661,62 @@ const tabs = computed(() => [
   { key: "validation", label: "时间轴校验" },
 ]);
 
-const activeTab    = ref("ai");
+// 当前 Tab 持久化（按报告 id 存本机 localStorage，刷新后停留在原 tab，不跳回 AI 报告）
+const TAB_KEY = `ec-report-tab:${props.report.id}`;
+const VALID_TABS = ["ai", "human", "prompt", "accuracy", "validation"];
+function loadTab() {
+  try {
+    const t = localStorage.getItem(TAB_KEY);
+    return VALID_TABS.includes(t) ? t : "ai";
+  } catch {
+    return "ai";
+  }
+}
+const activeTab    = ref(loadTab());
 const copied       = ref(null);
+
+// 切 tab：记当前 tab + 存离开 tab 的滚动位置 + 恢复进入 tab 的滚动位置
+watch(activeTab, (t, prev) => {
+  try {
+    localStorage.setItem(TAB_KEY, t);
+  } catch { /* localStorage 不可用则只内存生效 */ }
+  if (prev) saveScrollFor(prev);
+  restoreScroll(t);
+});
+
+// ── 滚动位置记忆（按 报告id + tab 存本机 localStorage，刷新/切 tab 回到原浏览区域）──
+const showBackTop = ref(false);
+function scrollKey(tab) {
+  return `ec-report-scroll:${props.report.id}:${tab}`;
+}
+function saveScrollFor(tab) {
+  try {
+    localStorage.setItem(scrollKey(tab), String(Math.round(window.scrollY)));
+  } catch { /* localStorage 不可用则忽略 */ }
+}
+let scrollTimer = null;
+function onScroll() {
+  showBackTop.value = window.scrollY > 300;
+  if (scrollTimer) clearTimeout(scrollTimer);
+  scrollTimer = setTimeout(() => saveScrollFor(activeTab.value), 150);
+}
+function restoreScroll(tab) {
+  let y = 0;
+  try {
+    y = parseInt(localStorage.getItem(scrollKey(tab)) || "0", 10) || 0;
+  } catch { /* 读不到则停在顶部 */ }
+  nextTick(() => {
+    window.scrollTo({ top: y });
+    // 正文(markdown/校验项)渲染后高度可能变化，稍后再校正一次
+    setTimeout(() => window.scrollTo({ top: y }), 120);
+  });
+}
+function scrollTop() {
+  window.scrollTo({ top: 0, behavior: "smooth" });
+}
+function onBeforeUnload() {
+  saveScrollFor(activeTab.value);
+}
 
 // 豆包提示词编辑状态（单版本模式用）
 const promptText    = ref(props.overridePrompt || props.report.doubao_prompt || "");
@@ -867,12 +935,24 @@ async function copy(text, key) {
 // Edge 多账户（豆包账号一键切换）
 const edgeProfiles = ref([]);
 onMounted(async () => {
+  // 滚动记忆：挂监听 + 恢复当前 tab 的滚动位置
+  window.addEventListener("scroll", onScroll, { passive: true });
+  window.addEventListener("beforeunload", onBeforeUnload);
+  showBackTop.value = window.scrollY > 300;
+  restoreScroll(activeTab.value);
+
   try {
     const res = await api.get("/system/edge-profiles");
     edgeProfiles.value = res.profiles || [];
   } catch {
     edgeProfiles.value = [];
   }
+});
+
+onUnmounted(() => {
+  saveScrollFor(activeTab.value);
+  window.removeEventListener("scroll", onScroll);
+  window.removeEventListener("beforeunload", onBeforeUnload);
 });
 
 // 默认打开（无指定账户，用 Edge 默认 Profile）
