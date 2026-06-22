@@ -67,6 +67,24 @@
 
 ---
 
+## 🟢 VSCode 内自动打开前端页面（folderOpen 真全自动，2026-06-22 落地待验证）
+
+**需求**：用户要「起完前后端后，在 VSCode 内打开前端页面」（不弹外部 Chrome）。
+
+**走过的弯路（如实记，避免重蹈）**：先以为 `workbench.browser.openLocalhostLinks` + 终端 echo 链接能自动弹——错。核实官方：该开关只改「**点击** localhost 链接走内置浏览器」的点击行为，不自动弹；且 Claude 命令输出不进 VSCode 可视终端缓冲区，link 扫描器扫不到。
+
+**已定方案（用户 AskUserQuestion 选「真全自动」）**：`.vscode/tasks.json` 的 **folderOpen 自动任务**——打开/重载项目 → 自动起前端 dev server → ready 后内置浏览器(`simpleBrowser.show`)自动开 `http://localhost:5173`。
+- 架构调整：**前端启动归属从 Claude 改到 VSCode 任务**；Claude 启动清单只起后端+验活（已改 CLAUDE.md 第5-6步）。
+- `settings.json`：`task.allowAutomaticTasks:on` + `openLocalhostLinks:true`(仅辅助)。
+
+**落地文件**：`.vscode/tasks.json`(新建：dev:frontend + open-frontend-in-vscode) · `.vscode/settings.json`(新建) · `CLAUDE.md`(第5-6步)。
+
+**待验证（用户 Reload Window 触发，会重启会话）**：首次点「Allow and run」→ 前端自动起 + 内置浏览器自动弹 5173。风险：① `simpleBrowser.show` 在 1.123 是否仍有效 ② problemMatcher `Local:.*5173` 是否匹配 Vite 输出。**未提交，验证通过再 commit。**
+
+**现状**：🟢 已落地，等用户 Reload 验证。
+
+---
+
 ## 🟡 视频去硬字幕功能（用户新需求，2026-06-19 讨论中）
 
 **需求**：用户上传视频 → 消除字幕。痛点"去字幕非常难"——多为**硬字幕(烧进像素)**，非删字幕轨。

@@ -30,10 +30,15 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
    - 环境状态（Node 版本、依赖是否就绪）
    - 上次做到哪里、有无未完成任务
    - 今天建议优先做什么
-5. 启动前后端服务（后台运行，不阻塞对话）：
+5. 启动后端服务（后台运行，不阻塞对话）：
    - 后端：`export PATH="/c/nvm4w/nodejs:/c/ffmpeg/bin:$PATH" && cd server && node app.js`
-   - 前端：`cd client && npm run dev`
-   - 验活：curl :3000 和 :5173 各一次，确认响应后告知用户
+   - 验活：curl :3000（如 `/api/tasks`）确认响应后告知用户
+   - **前端不再由 Claude 启动**：交给 VSCode `.vscode/tasks.json` 的 folderOpen 自动任务 `dev:frontend`（打开/重载项目时自动 `npm run dev`）。仅当自动任务被禁用时才手动 `cd client && npm run dev`
+6. **VSCode 内自动打开前端页面**（`.vscode/tasks.json` folderOpen 任务，已配，真全自动）：
+   - 打开/重载项目 → 自动起前端 dev server → server ready 后自动用 VSCode 内置浏览器打开 `http://localhost:5173`，页面已就绪，无需手动、不走外部 Chrome
+   - 首次打开会弹「Allow and run」授权自动任务（`task.allowAutomaticTasks`），点允许即可，之后记住
+   - 仅 VSCode 集成终端有效；命令面板 → Developer: Reload Window 可手动触发验证（注意 Reload 会重启本 Claude 会话）
+   - `settings.json` 的 `workbench.browser.openLocalhostLinks` 仅作辅助（让手动点的 localhost 链接也走内置浏览器，不会自己弹页面）
 
 ---
 

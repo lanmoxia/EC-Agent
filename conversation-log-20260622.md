@@ -30,8 +30,25 @@
 - 清理：删本轮全部测试投喂(含两次早期 curl 已入库但未记 id 的残留)+ 24 个上传假视频，表内 0 条
 - **状态：代码完成+验收通过，未 commit，等用户放行**（DECISIONS.md 已记）
 
+## VSCode 内自动打开前端（folderOpen 真全自动，本轮落地）
+- 用户要「起完前后端后在 VSCode 内打开前端页面」，本轮定方案并落地
+- 走过一次弯路（如实记）：先试 `workbench.browser.openLocalhostLinks` + 终端 echo 链接触发——**没弹**。核实官方资料定位：该开关是「点击 localhost 链接时走内置浏览器」的**点击行为**，不会自己弹页面；且 Claude 跑命令在子进程、输出不进 VSCode 可视终端缓冲区，link 扫描器扫不到。此路废。
+- AskUserQuestion 二选一，用户选「真全自动」→ 用 `.vscode/tasks.json` 的 **folderOpen 自动任务**：
+  · `dev:frontend`(shell `npm run dev` @client，isBackground，problemMatcher.background 用 `Local:.*5173` 判 ready)
+  · `open-frontend-in-vscode`(`runOn:folderOpen`，`dependsOn:dev:frontend`，input type=command `simpleBrowser.show` args=`http://localhost:5173`)——等前端 ready 后自动用内置浏览器开
+- **架构调整**：前端启动从 Claude 改由 VSCode 任务管；Claude 启动清单只起后端+验活。改 `CLAUDE.md` 第5-6步。
+- `.vscode/settings.json`：`task.allowAutomaticTasks:on`(尽量免首次授权) + `workbench.browser.openLocalhostLinks:true`(仅辅助点击)
+- 停掉本会话 Claude 后台起的前端(释放 5173 给 task)；后端 bubaygbv1 仍在跑
+- **待验证**：用户 Reload Window（会重启本会话）触发 folderOpen，首次点「Allow and run」，看前端自动起 + 内置浏览器自动弹 5173。风险点：① `simpleBrowser.show` 命令 ID 在 1.123 是否仍有效（无效则换 Integrated Browser 新命令）② problemMatcher endsPattern 是否匹配 Vite 输出。**均未提交，验证通过后再 commit。**
+
 ## 待办（延续）
+- **【验证中】VSCode 内自动打开前端**：Reload Window 验证 folderOpen 任务（详见上节）
 - 投喂功能用户实测（含本轮可灵按分镜上传）
-- VSCode 打开前端页面方案 A/B 待用户选定后写入启动清单
 - 提示词打磨主线攒题材样本；五年级(1).mp4 待磨
 - VSR 去字幕：镜像拉取续 + 实测（暂停中）
+
+## 下班接力（晚 18:5x）
+- 本会话=启动接力(环境✅/Node22/依赖就绪)+起后端(:3000→200)+汇报现状，无实质代码改动
+- 远端与本地持平(0/0)；本地未提交=VSCode 自动开页产物：`.vscode/{tasks,settings}.json`(新增) + `CLAUDE.md`启动清单第5-6步 + `DECISIONS.md` + 本 log
+- 用户下班，**存档推送**这批改动（供双机切换：明天另一台机 git pull 即接上）
+- ⚠️ 注意：VSCode 自动开页(folderOpen)**仍未实测**，此次推送是存档代码、非验证通过。下次开工第一件事＝Reload Window 验证 `simpleBrowser.show` 是否弹 5173

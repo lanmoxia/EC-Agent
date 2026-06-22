@@ -1,0 +1,43 @@
+{
+  // —— VSCode 内看前端：真全自动 ——
+  // 打开/重载项目 → 自动跑 dev:frontend 起 Vite → server ready 后
+  // open-frontend-in-vscode 用内置浏览器自动打开 http://localhost:5173（页面已就绪）。
+  // 首次打开会弹「Allow and run」授权自动任务，点允许即可（之后记住）。
+  // 触发验证：命令面板 → Developer: Reload Window。
+  "version": "2.0.0",
+  "tasks": [
+    {
+      // 起前端 dev server（后台），problemMatcher 检测 Vite 打印 Local:...5173 即视为 ready
+      "label": "dev:frontend",
+      "type": "shell",
+      "command": "npm run dev",
+      "options": { "cwd": "${workspaceFolder}/client" },
+      "isBackground": true,
+      "problemMatcher": {
+        "pattern": { "regexp": "^$" },
+        "background": {
+          "activeOnStart": true,
+          "beginsPattern": "VITE|ready in",
+          "endsPattern": "Local:.*5173"
+        }
+      },
+      "presentation": { "reveal": "always", "panel": "dedicated", "group": "ec-dev" }
+    },
+    {
+      // 等 dev:frontend ready 后，用 VSCode 内置浏览器打开前端
+      "label": "open-frontend-in-vscode",
+      "command": "${input:openFrontend}",
+      "dependsOn": "dev:frontend",
+      "problemMatcher": [],
+      "runOptions": { "runOn": "folderOpen" }
+    }
+  ],
+  "inputs": [
+    {
+      "id": "openFrontend",
+      "type": "command",
+      "command": "simpleBrowser.show",
+      "args": "http://localhost:5173"
+    }
+  ]
+}
