@@ -54,9 +54,16 @@
 - 前端：`VideoPicker.vue`(共享拖拽选视频) + `feedings.api.js` + 路由 `/feed`、`/feed/:id` + App.vue 导航「投喂」 + `FeedView.vue`(豆包单框/可灵多分镜+「添加分镜」+可选两 tab 视频+备注+提交+列表) + `FeedDetailView.vue`(只读提示词+补/换两视频+状态自动转 complete)。
 - 验收：后端 curl 建/列表/补视频全过；中文 UTF-8 直读 DB 确认(之前乱码=Git Bash curl -F 编码问题，非服务端)；client lint 0 错 + `npm run build` 全编译过；经 :5173 代理 E2E 建一条通过；测试数据已清空。
 
+**增强：可灵按分镜上传（2026-06-22 本轮，用户提需求并验收）**：
+- 痛点：原结构豆包/可灵**共用单对标+单生成**，装不下可灵「每镜一个生成视频 + 每镜一段对标」，丢失分镜级对应（第②层按镜 diff 学习的关键数据）。
+- 已定（与用户确认）：豆包不变(1对标+1生成)；可灵=**顶部整段对标(可选) + 每镜(对标分段 + 生成视频)**，第 i 镜 ↔ 第 i 段对标 ↔ 第 i 个生成，1:1；整段+分段**同时都要**；视频全可选先交后补。
+- 落地（**不改 schema**，复用列）：整段对标→`target_video_path`；每镜视频塞进 `prompt_json` shot 对象 `{index,text,targetSegment?,generated?}`；可灵顶层 `generated_video_path` 留空。`computeStatus` 改按平台(可灵=整段或每段齐 且 每镜都有生成→complete)。
+- 改动文件：`feeding.model.js`(parseShots+按平台status) · `feedings.route.js`(multer.any + 字段白名单 `targetVideo/generatedVideo/klingTarget_i/klingGen_i` + `mergeKlingShots` 合并/PATCH保留未传镜) · `db.js`(注释) · `FeedView.vue`(可灵每镜内联两 VideoPicker + 顶部整段) · `FeedDetailView.vue`(可灵按镜补/换)。`VideoPicker.vue`/`feedings.api.js` 原样复用。
+- 验收：server+client lint 0错 + client build 过；curl 三连(可灵3镜全齐→complete/1:1正确、豆包不变、PATCH补单镜仅该镜变其余保留)全过；测试数据已清(表 0 条)。**未提交，等用户放行。**
+
 **待续(未来，不阻塞)**：第②层动工时经桥接列 topic_fingerprint/linked_experiment_id 设计"投喂→题材账本"整合；uploads 静态服务以便页内预览视频(现仅存+显示文件名)。
 
-**现状**：🟢 已建成跑通(独立收集，物理隔离现有体系)；等用户实测使用，整合留待第②层。
+**现状**：🟢 已建成跑通 + 可灵按分镜上传已增强(本轮)；等用户实测使用，整合留待第②层。
 
 ---
 

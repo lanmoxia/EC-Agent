@@ -36,12 +36,23 @@
           class="w-full resize-none rounded-lg border border-input bg-background px-3 py-2.5 text-sm leading-relaxed placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
         />
 
-        <!-- 可灵：多分镜 -->
-        <div v-else class="space-y-2">
+        <!-- 可灵：整段对标 + 每镜(提示词 + 对标分段 + 生成视频) -->
+        <div v-else class="space-y-3">
+          <!-- 整段对标（可选） -->
+          <div class="rounded-lg border border-border bg-background/50 p-3 space-y-1.5">
+            <div class="flex items-center gap-1.5">
+              <Film class="h-3.5 w-3.5 text-muted-foreground" />
+              <span class="text-xs font-medium">整段对标视频</span>
+              <span class="text-xs text-muted-foreground">可选 · 完整原视频；也可只在每镜放分段</span>
+            </div>
+            <VideoPicker v-model="klingWhole" placeholder="选择完整对标原视频（可选）" />
+          </div>
+
+          <!-- 分镜卡片：提示词 + 对标分段 + 生成视频（第 i 镜 1:1 对齐） -->
           <div
             v-for="(shot, i) in klingShots"
             :key="i"
-            class="rounded-lg border border-border bg-background/50 p-3 space-y-2"
+            class="rounded-lg border border-border bg-background/50 p-3 space-y-2.5"
           >
             <div class="flex items-center justify-between">
               <span class="rounded-full bg-sky-500/15 px-2.5 py-0.5 text-xs font-semibold text-sky-400">第 {{ i + 1 }} 镜</span>
@@ -55,23 +66,33 @@
               </button>
             </div>
             <textarea
-              v-model="klingShots[i]"
+              v-model="shot.text"
               rows="3"
               :placeholder="`第 ${i + 1} 镜的提示词…`"
               class="w-full resize-none rounded-md border border-input bg-background px-3 py-2 text-sm leading-relaxed placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
             />
+            <div class="grid grid-cols-1 gap-2 sm:grid-cols-2">
+              <div class="space-y-1">
+                <span class="text-xs text-muted-foreground">对标分段（可选）</span>
+                <VideoPicker v-model="shot.targetSeg" :placeholder="`第${i + 1}镜 对标分段`" />
+              </div>
+              <div class="space-y-1">
+                <span class="text-xs text-muted-foreground">生成视频</span>
+                <VideoPicker v-model="shot.gen" :placeholder="`第${i + 1}镜 生成视频`" />
+              </div>
+            </div>
           </div>
           <button
             class="flex items-center gap-1.5 text-sm text-primary hover:text-primary/80 transition-colors"
-            @click="klingShots.push('')"
+            @click="klingShots.push({ text: '', targetSeg: null, gen: null })"
           >
             <Plus class="h-4 w-4" /> 添加分镜
           </button>
         </div>
       </div>
 
-      <!-- 视频（可选，可折叠）：两 tab 对标/生成 -->
-      <div class="rounded-lg border border-border overflow-hidden">
+      <!-- 豆包视频（可选，可折叠）：两 tab 对标/生成 -->
+      <div v-if="platform === 'douban'" class="rounded-lg border border-border overflow-hidden">
         <button class="flex w-full items-center justify-between px-4 py-3 text-left" @click="showVideos = !showVideos">
           <div class="flex items-center gap-2">
             <Clapperboard class="h-4 w-4 text-muted-foreground" />
@@ -140,8 +161,8 @@
             {{ f.status === 'complete' ? '✓ 已完整' : '待补视频' }}
           </Badge>
           <span class="ml-auto flex items-center gap-2 text-xs text-muted-foreground">
-            <span :class="f.target_video_path ? 'text-emerald-400' : ''">对标{{ f.target_video_path ? '✓' : '—' }}</span>
-            <span :class="f.generated_video_path ? 'text-emerald-400' : ''">生成{{ f.generated_video_path ? '✓' : '—' }}</span>
+            <span :class="hasTarget(f) ? 'text-emerald-400' : ''">对标{{ hasTarget(f) ? '✓' : '—' }}</span>
+            <span :class="hasGenerated(f) ? 'text-emerald-400' : ''">生成{{ hasGenerated(f) ? '✓' : '—' }}</span>
             <span>{{ fmtTime(f.created_at) }}</span>
           </span>
         </div>
@@ -153,7 +174,7 @@
 
 <script setup>
 import { ref, computed, onMounted } from "vue";
-import { X, Plus, Check, ChevronDown, Clapperboard, AlertCircle, Loader2, Send } from "lucide-vue-next";
+import { X, Plus, Check, ChevronDown, Clapperboard, Film, AlertCircle, Loader2, Send } from "lucide-vue-next";
 import Button from "@/components/ui/Button.vue";
 import Badge from "@/components/ui/Badge.vue";
 import VideoPicker from "@/components/business/VideoPicker.vue";
@@ -170,27 +191,21 @@ const VIDEO_TABS = [
 
 const platform     = ref("douban");
 const doubanPrompt  = ref("");
-const klingShots    = ref([""]);
+// 可灵分镜：每镜 = { 提示词文本, 对标分段 File, 生成视频 File }
+const klingShots    = ref([{ text: "", targetSeg: null, gen: null }]);
+const klingWhole    = ref(null);   // 可灵整段对标 File（可选）
 const showVideos    = ref(false);
 const videoTab      = ref("target");
-const targetVideo    = ref(null);
-const generatedVideo = ref(null);
+const targetVideo    = ref(null);   // 豆包对标
+const generatedVideo = ref(null);   // 豆包生成
 const note          = ref("");
 const submitting    = ref(false);
 const error         = ref(null);
 const feedings      = ref([]);
 
-// 拍平可灵分镜为可读文本 + 结构化数组
-function buildKling() {
-  const shots = klingShots.value.map(s => s.trim()).filter(Boolean);
-  const promptText = shots.map((t, i) => `【第${i + 1}镜】\n${t}`).join("\n\n");
-  const promptJson = JSON.stringify(shots.map((t, i) => ({ index: i + 1, text: t })));
-  return { promptText, promptJson, count: shots.length };
-}
-
 const canSubmit = computed(() => {
   if (platform.value === "douban") return !!doubanPrompt.value.trim();
-  return klingShots.value.some(s => s.trim());
+  return klingShots.value.some(s => s.text.trim());
 });
 
 async function submit() {
@@ -199,16 +214,26 @@ async function submit() {
 
   const fd = new FormData();
   fd.append("platform", platform.value);
+
   if (platform.value === "kling") {
-    const { promptText, promptJson } = buildKling();
+    // 只保留有文本的分镜，索引重排后用于文件字段对齐（第 i 镜 → klingTarget_i / klingGen_i）
+    const kept = klingShots.value.filter(s => s.text.trim());
+    const promptText = kept.map((s, i) => `【第${i + 1}镜】\n${s.text.trim()}`).join("\n\n");
+    const promptJson = JSON.stringify(kept.map((s, i) => ({ index: i + 1, text: s.text.trim() })));
     fd.append("promptText", promptText);
     fd.append("promptJson", promptJson);
+    if (klingWhole.value) fd.append("targetVideo", klingWhole.value);   // 整段对标
+    kept.forEach((s, i) => {
+      if (s.targetSeg) fd.append(`klingTarget_${i}`, s.targetSeg);
+      if (s.gen)       fd.append(`klingGen_${i}`,    s.gen);
+    });
   } else {
     fd.append("promptText", doubanPrompt.value.trim());
+    if (targetVideo.value)    fd.append("targetVideo",    targetVideo.value);
+    if (generatedVideo.value) fd.append("generatedVideo", generatedVideo.value);
   }
+
   if (note.value.trim()) fd.append("note", note.value.trim());
-  if (targetVideo.value)    fd.append("targetVideo", targetVideo.value);
-  if (generatedVideo.value) fd.append("generatedVideo", generatedVideo.value);
 
   submitting.value = true;
   try {
@@ -224,12 +249,24 @@ async function submit() {
 
 function resetForm() {
   doubanPrompt.value = "";
-  klingShots.value = [""];
+  klingShots.value = [{ text: "", targetSeg: null, gen: null }];
+  klingWhole.value = null;
   targetVideo.value = null;
   generatedVideo.value = null;
   note.value = "";
   showVideos.value = false;
   videoTab.value = "target";
+}
+
+// 列表视频标记：可灵从 promptJson 派生（整段或任一分段→对标✓；任一镜生成→生成✓）
+function hasTarget(f) {
+  if (f.target_video_path) return true;
+  if (f.platform === "kling") return (f.promptJson || []).some(s => s?.targetSegment?.path);
+  return false;
+}
+function hasGenerated(f) {
+  if (f.platform === "kling") return (f.promptJson || []).some(s => s?.generated?.path);
+  return !!f.generated_video_path;
 }
 
 function fmtTime(ts) {

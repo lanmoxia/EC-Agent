@@ -34,7 +34,9 @@
       <!-- 补/换视频 -->
       <div class="rounded-xl border border-border bg-card p-5 space-y-4">
         <h3 class="text-sm font-semibold uppercase tracking-wider text-muted-foreground">对标视频 / 生成视频</h3>
-        <div class="space-y-4">
+
+        <!-- 豆包：单对标 + 单生成 -->
+        <div v-if="feeding.platform !== 'kling'" class="space-y-4">
           <div class="space-y-1.5">
             <label class="text-sm font-medium">对标视频<span class="text-xs text-muted-foreground">（你模仿的原视频）</span></label>
             <VideoPicker v-model="newTarget" :existing-name="feeding.target_video_name || ''" placeholder="选择对标视频" />
@@ -42,6 +44,34 @@
           <div class="space-y-1.5">
             <label class="text-sm font-medium">生成视频<span class="text-xs text-muted-foreground">（用该提示词生成的）</span></label>
             <VideoPicker v-model="newGenerated" :existing-name="feeding.generated_video_name || ''" placeholder="选择生成视频" />
+          </div>
+        </div>
+
+        <!-- 可灵：整段对标 + 每镜(对标分段 + 生成视频) -->
+        <div v-else class="space-y-4">
+          <div class="space-y-1.5">
+            <label class="text-sm font-medium">整段对标视频<span class="text-xs text-muted-foreground">（完整原视频，可选）</span></label>
+            <VideoPicker v-model="newTarget" :existing-name="feeding.target_video_name || ''" placeholder="选择完整对标原视频" />
+          </div>
+          <div
+            v-for="(shot, i) in (feeding.promptJson || [])"
+            :key="i"
+            class="rounded-lg border border-border bg-background/50 p-3 space-y-2.5"
+          >
+            <div class="flex items-center gap-2">
+              <span class="shrink-0 rounded-full bg-sky-500/15 px-2.5 py-0.5 text-xs font-semibold text-sky-400">第 {{ i + 1 }} 镜</span>
+              <span class="line-clamp-1 text-xs text-muted-foreground">{{ shot.text }}</span>
+            </div>
+            <div v-if="klingNew[i]" class="grid grid-cols-1 gap-2 sm:grid-cols-2">
+              <div class="space-y-1">
+                <span class="text-xs text-muted-foreground">对标分段</span>
+                <VideoPicker v-model="klingNew[i].targetSeg" :existing-name="shot.targetSegment?.name || ''" :placeholder="`第${i + 1}镜 对标分段`" />
+              </div>
+              <div class="space-y-1">
+                <span class="text-xs text-muted-foreground">生成视频</span>
+                <VideoPicker v-model="klingNew[i].gen" :existing-name="shot.generated?.name || ''" :placeholder="`第${i + 1}镜 生成视频`" />
+              </div>
+            </div>
           </div>
         </div>
 
@@ -87,22 +117,32 @@ const route = useRoute();
 const feeding   = ref(null);
 const loadError = ref(null);
 
-const newTarget    = ref(null);
-const newGenerated = ref(null);
+const newTarget    = ref(null);    // 豆包对标 / 可灵整段对标
+const newGenerated = ref(null);    // 豆包生成
+const klingNew     = ref([]);      // 可灵每镜新选文件 [{targetSeg, gen}]，与 promptJson 对齐
 const note         = ref("");
 const saving       = ref(false);
 const error        = ref(null);
 const savedMsg     = ref(null);
 
-const canSave = computed(() =>
-  !!newTarget.value || !!newGenerated.value || note.value !== (feeding.value?.note || "")
-);
+const canSave = computed(() => {
+  if (newTarget.value) return true;
+  if (note.value !== (feeding.value?.note || "")) return true;
+  if (feeding.value?.platform === "kling") return klingNew.value.some(s => s.targetSeg || s.gen);
+  return !!newGenerated.value;
+});
+
+// 按当前分镜数初始化每镜文件槽（可灵）
+function initKlingNew(f) {
+  klingNew.value = (f?.promptJson || []).map(() => ({ targetSeg: null, gen: null }));
+}
 
 async function load() {
   try {
     const res = await feedingsApi.getById(route.params.id);
     feeding.value = res.data;
     note.value = res.data.note || "";
+    initKlingNew(res.data);
   } catch (err) {
     loadError.value = err.message || "加载失败";
   }
@@ -114,8 +154,15 @@ async function save() {
   savedMsg.value = null;
 
   const fd = new FormData();
-  if (newTarget.value)    fd.append("targetVideo", newTarget.value);
-  if (newGenerated.value) fd.append("generatedVideo", newGenerated.value);
+  if (newTarget.value) fd.append("targetVideo", newTarget.value);   // 整段对标 / 豆包对标
+  if (feeding.value.platform === "kling") {
+    klingNew.value.forEach((s, i) => {
+      if (s.targetSeg) fd.append(`klingTarget_${i}`, s.targetSeg);
+      if (s.gen)       fd.append(`klingGen_${i}`,    s.gen);
+    });
+  } else if (newGenerated.value) {
+    fd.append("generatedVideo", newGenerated.value);
+  }
   if (note.value !== (feeding.value.note || "")) fd.append("note", note.value.trim());
 
   saving.value = true;
@@ -125,6 +172,7 @@ async function save() {
     note.value = res.data.note || "";
     newTarget.value = null;
     newGenerated.value = null;
+    initKlingNew(res.data);
     savedMsg.value = "已保存 ✓";
     setTimeout(() => { savedMsg.value = null; }, 2500);
   } catch (err) {

@@ -14,17 +14,23 @@ const FeedingModel = {
   create({ platform, promptText, promptJson, note, targetVideo, generatedVideo } = {}) {
     const id = nanoid();
     const now = Date.now();
+    const plat = ["douban", "kling"].includes(platform) ? platform : "douban";
+    const shots = parseShots(promptJson);   // 可灵分镜数组（含每镜内嵌视频）；豆包为 null
     const row = {
       id,
-      platform: ["douban", "kling"].includes(platform) ? platform : "douban",
+      platform: plat,
       prompt_text: promptText || "",
-      prompt_json: promptJson ? (typeof promptJson === "string" ? promptJson : JSON.stringify(promptJson)) : null,
+      prompt_json: shots ? JSON.stringify(shots) : null,
       target_video_path:    targetVideo?.path    ?? null,
       target_video_name:    targetVideo?.name    ?? null,
       generated_video_path: generatedVideo?.path ?? null,
       generated_video_name: generatedVideo?.name ?? null,
       note: note || null,
-      status: computeStatus(targetVideo?.path, generatedVideo?.path),
+      status: computeStatus(plat, {
+        targetPath:    targetVideo?.path,
+        generatedPath: generatedVideo?.path,
+        shots,
+      }),
       created_at: now,
       updated_at: now,
     };
@@ -60,9 +66,11 @@ const FeedingModel = {
     const sets = [];
     const vals = {};
     if (promptText !== undefined) { sets.push("prompt_text = @prompt_text"); vals.prompt_text = promptText || ""; }
+    let nextShots;   // undefined=未改用旧值，null/array=本次新值
     if (promptJson !== undefined) {
+      nextShots = parseShots(promptJson);
       sets.push("prompt_json = @prompt_json");
-      vals.prompt_json = promptJson ? (typeof promptJson === "string" ? promptJson : JSON.stringify(promptJson)) : null;
+      vals.prompt_json = nextShots ? JSON.stringify(nextShots) : null;
     }
     if (note !== undefined) { sets.push("note = @note"); vals.note = note || null; }
     if (targetVideo) {
@@ -76,11 +84,16 @@ const FeedingModel = {
       vals.generated_video_name = generatedVideo.name;
     }
 
-    // 用更新后的视频路径重算 status
+    // 用更新后的视频路径 + 分镜重算 status
     const nextTarget    = targetVideo    ? targetVideo.path    : cur.target_video_path;
     const nextGenerated = generatedVideo ? generatedVideo.path : cur.generated_video_path;
+    const effShots      = nextShots !== undefined ? nextShots : parseShots(cur.prompt_json);
     sets.push("status = @status");
-    vals.status = computeStatus(nextTarget, nextGenerated);
+    vals.status = computeStatus(cur.platform, {
+      targetPath: nextTarget,
+      generatedPath: nextGenerated,
+      shots: effShots,
+    });
 
     sets.push("updated_at = @updated_at");
     vals.updated_at = Date.now();
@@ -98,8 +111,31 @@ const FeedingModel = {
   },
 };
 
-/** 对标 + 生成两视频齐全 = complete，否则 prompt_only */
-function computeStatus(targetPath, generatedPath) {
+/** 把 promptJson（字符串/数组/null）归一成分镜数组或 null */
+function parseShots(promptJson) {
+  if (!promptJson) return null;
+  if (Array.isArray(promptJson)) return promptJson;
+  if (typeof promptJson === "string") {
+    try { const p = JSON.parse(promptJson); return Array.isArray(p) ? p : null; }
+    catch { return null; }
+  }
+  return null;
+}
+
+/**
+ * 状态判定（按平台）：
+ * - 豆包：对标 + 生成两视频齐 = complete
+ * - 可灵：(整段对标 或 每镜都有对标分段) 且 每镜都有生成视频 = complete
+ * 其余（含空分镜）= prompt_only。
+ */
+function computeStatus(platform, { targetPath, generatedPath, shots } = {}) {
+  if (platform === "kling") {
+    if (!Array.isArray(shots) || !shots.length) return "prompt_only";
+    const everyGen = shots.every(s => s?.generated?.path);
+    const everySeg = shots.every(s => s?.targetSegment?.path);
+    const hasTarget = !!targetPath || everySeg;
+    return hasTarget && everyGen ? "complete" : "prompt_only";
+  }
   return targetPath && generatedPath ? "complete" : "prompt_only";
 }
 

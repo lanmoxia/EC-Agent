@@ -123,10 +123,10 @@ db.exec(`
     id                   TEXT    PRIMARY KEY,
     platform             TEXT    NOT NULL DEFAULT 'douban',      -- douban / kling
     prompt_text          TEXT    NOT NULL,                       -- 拍平文本(豆包整段/可灵分镜拼接)，供 Claude 读+展示
-    prompt_json          TEXT,                                   -- 可灵分镜数组 JSON（豆包为 null）
-    target_video_path    TEXT,                                   -- 对标视频（later 补）
+    prompt_json          TEXT,                                   -- 可灵分镜数组 JSON：[{index,text,targetSegment?:{path,name},generated?:{path,name}}]（豆包为 null）
+    target_video_path    TEXT,                                   -- 豆包对标 / 可灵整段对标（later 补）
     target_video_name    TEXT,
-    generated_video_path TEXT,                                   -- 用该提示词生成的视频（later 补）
+    generated_video_path TEXT,                                   -- 豆包生成视频（可灵生成在每镜 prompt_json 内，顶层留空）
     generated_video_name TEXT,
     note                 TEXT,                                   -- 用户备注（可选）
     status               TEXT    NOT NULL DEFAULT 'prompt_only', -- prompt_only / complete
