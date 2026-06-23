@@ -51,7 +51,14 @@
 
 **残留缺口（如实记）**：① 钩子改动需**会话重启**才加载——本会话内 PROGRESS.md 仍是手动种子，下个新会话起才自动。② 每轮只推 PROGRESS.md 文字（脏文件清单），**不推半成品代码字节**——跨机器中途能拿到"地图"，但拿不到未提交的代码内容（要那个得另上 WIP 分支，暂不做）。③ 依赖 git 在钩子 shell 的 PATH 里（实测一直可用，失败则 fail-open 静默不推）。
 
-**现状**：✅ 已建成跑通(DRYRUN 验证)，**下个会话重启后钩子自动生效**；届时观察 PROGRESS.md 是否每轮自动更新+推送。
+**重启验证（2026-06-23，实测，超预期）**：
+- **钩子免重启已自动生效**：时间戳铁证——`fb44be4`(16:41:43) 是我上一轮回复结束时 Stop 钩子**自动**触发生成(消息＝上轮锚点 current_task)，非手动。L1 自动链路(解析锚点→写PROGRESS→commit→push)真在每轮后自动跑+跨机可见。
+- **暴露并修复 2 问题**：
+  · 问题1 解析失败用空内容覆盖好状态 → 加 `if(!cur) return done()` 跳过闸（实测：无锚点 transcript 不覆盖不 commit）。
+  · 问题2 每轮堆碎 commit → 用户选「**单条可重写 progress commit**」：HEAD 若是只改 PROGRESS 的 progress commit 就 `--amend` 重写 + `push --force-with-lease`，否则(真feat/docs)新建首条。实测两轮 commit 总数 43→43 不增、测试垃圾消息被真实进度 amend 自愈。
+- **force-push 配套**：启动清单第1步加"git pull 分叉时 `reset --hard origin/main` 对齐"（progress 自动生成、丢本地版安全）。用 `--force-with-lease` 非裸 force，不会误删他人/另一台的真 commit。
+
+**现状**：✅ 已建成 + 重启验证通过(钩子免重启自动生效/amend单条/解析失败保留/自愈/force-with-lease)。L1 全自动跑通。
 
 ---
 

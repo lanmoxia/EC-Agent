@@ -63,6 +63,9 @@ try {
     if (fm) { cur = fm[1].trim(); chg = fm[2].trim(); nxt = fm[3].trim(); }
   }
 
+  // 解析不到锚点（旧回复未落盘/时序假象/真缺）→ 不用空内容覆盖上一份好状态，直接跳过本轮。
+  if (!cur) return done();
+
   const status = git("status --short");
   const branch = git("rev-parse --abbrev-ref HEAD");
   const lastCommit = git("log --oneline -1");
@@ -107,11 +110,34 @@ try {
 
   fs.writeFileSync(PROGRESS, content);
 
-  // 只 commit + push PROGRESS.md；全程 fail-open
+  // —— 进度信息永远只占 main 顶部「一条」progress commit，避免历史碎片 ——
+  // HEAD 已是 progress commit 且只动了 PROGRESS.md → amend 重写它(不堆新的)，force-with-lease 推；
+  // 否则(HEAD 是真正的 feat/docs commit) → 新建一条 progress(不能 amend 掉真 commit)，普通推。
+  // 全程 fail-open：任何 git 失败都不抛、不卡用户。
   const msg = "progress: " + (cur ? cur.slice(0, 72) : "update");
-  try { execSync("git add -- " + JSON.stringify(PROGRESS), { cwd: PROJECT_DIR, stdio: "ignore" }); } catch { /* noop */ }
-  try { execSync("git commit -q -m " + JSON.stringify(msg) + " -- " + JSON.stringify(PROGRESS), { cwd: PROJECT_DIR, stdio: "ignore" }); } catch { /* noop */ }
-  try { execSync("git push -q", { cwd: PROJECT_DIR, stdio: "ignore" }); } catch { /* 离线/失败：本地已 commit，下次补推 */ }
+  const PF = JSON.stringify(PROGRESS);
+  function sh(cmd) { execSync(cmd, { cwd: PROJECT_DIR, stdio: ["ignore", "pipe", "ignore"] }); }
+  function shOut(cmd) { try { return execSync(cmd, { cwd: PROJECT_DIR, stdio: ["ignore", "pipe", "ignore"] }).toString().trim(); } catch { return ""; } }
+
+  try {
+    sh("git add -- " + PF);
+
+    const headSubject = shOut("git log -1 --format=%s");
+    // HEAD 那条 commit 是否「只」改了 PROGRESS.md（确保 amend 不会吞掉别的文件）
+    const headFiles = shOut("git show --name-only --format= HEAD").split(/\r?\n/).filter(Boolean);
+    const headIsLoneProgress = /^progress:/.test(headSubject) && headFiles.length === 1 && /(^|[\\/])PROGRESS\.md$/.test(headFiles[0]);
+
+    if (headIsLoneProgress) {
+      // 重写顶部那条 progress
+      sh("git commit -q --amend -m " + JSON.stringify(msg) + " -- " + PF);
+      try { sh("git push -q --force-with-lease"); }
+      catch { /* 远端领先(双机)/离线：放弃强推，本地已重写，换机靠 reset --hard origin/main 对齐 */ }
+    } else {
+      // HEAD 是真 commit → 新建一条 progress（首条，之后才会被 amend 折叠）
+      sh("git commit -q -m " + JSON.stringify(msg) + " -- " + PF);
+      try { sh("git push -q"); } catch { /* 离线：下次补推 */ }
+    }
+  } catch { /* add/commit 失败：fail-open */ }
 
   done();
 } catch (e) {

@@ -23,7 +23,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **打开项目的第一件事，按顺序执行：**
 
-1. `git pull` — 拉取最新代码
+1. `git pull` — 拉取最新代码。**若提示与远端分叉/无法快进**（多半是另一台机的 progress-writer 钩子 force-push 重写了顶部 `progress:` commit）：直接 `git reset --hard origin/main` 对齐——顶部那条 progress 是自动生成的、无人手改，丢弃本地版绝对安全（真正的工作改动早已是独立 feat/docs commit，不受影响）。
 2. 检测环境：`node_modules` 不存在 或 Node 版本不是 22 → 立即运行 `.\setup.ps1`，等结果再继续
 3. **读 `PROJECT-OVERVIEW.md`（项目全貌长期说明书）—— 先建立整个项目的静态全局认知**：架构/核心数据流/DB schema/4层校验/题材学习系统/API全集/前端结构/半成品清单/提示词铁律。这是「**先看全局地图**」，专治"新会话只看到最近摘要、对老项目全貌没概念"。
 4. **看"上次卡在哪"两文件 → 再读最近日志**：
