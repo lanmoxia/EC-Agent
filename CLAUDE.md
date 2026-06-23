@@ -25,20 +25,20 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 1. `git pull` — 拉取最新代码
 2. 检测环境：`node_modules` 不存在 或 Node 版本不是 22 → 立即运行 `.\setup.ps1`，等结果再继续
-3. 读取最近 1-2 天的 `conversation-log-*.md`（按日期排序取最新的）**+ `DECISIONS.md`（在建/讨论中的方案台账，接回讨论思路）**
-4. 输出一段"项目现状摘要"给用户，格式：
+3. **读 `PROJECT-OVERVIEW.md`（项目全貌长期说明书）—— 先建立整个项目的静态全局认知**：架构/核心数据流/DB schema/4层校验/题材学习系统/API全集/前端结构/半成品清单/提示词铁律。这是「**先看全局地图**」，专治"新会话只看到最近摘要、对老项目全貌没概念"。
+4. 读取最近 1-2 天的 `conversation-log-*.md`（按日期排序取最新的）**+ `DECISIONS.md`（在建/讨论中的方案台账，接回讨论思路）**——在全局地图基础上「**再看最近动态进展**」，接回上次思路。
+5. 输出一段"项目现状摘要"给用户，格式：
    - 环境状态（Node 版本、依赖是否就绪）
    - 上次做到哪里、有无未完成任务
    - 今天建议优先做什么
-5. 启动后端服务（后台运行，不阻塞对话）：
+6. 启动后端服务（后台运行，不阻塞对话）：
    - 后端：`export PATH="/c/nvm4w/nodejs:/c/ffmpeg/bin:$PATH" && cd server && node app.js`
    - 验活：curl :3000（如 `/api/tasks`）确认响应后告知用户
-   - **前端不再由 Claude 启动**：交给 VSCode `.vscode/tasks.json` 的 folderOpen 自动任务 `dev:frontend`（打开/重载项目时自动 `npm run dev`）。仅当自动任务被禁用时才手动 `cd client && npm run dev`
-6. **VSCode 内自动打开前端页面**（`.vscode/tasks.json` folderOpen 任务，已配，真全自动）：
-   - 打开/重载项目 → 自动起前端 dev server → server ready 后自动用 VSCode 内置浏览器打开 `http://localhost:5173`，页面已就绪，无需手动、不走外部 Chrome
-   - 首次打开会弹「Allow and run」授权自动任务（`task.allowAutomaticTasks`），点允许即可，之后记住
-   - 仅 VSCode 集成终端有效；命令面板 → Developer: Reload Window 可手动触发验证（注意 Reload 会重启本 Claude 会话）
-   - `settings.json` 的 `workbench.browser.openLocalhostLinks` 仅作辅助（让手动点的 localhost 链接也走内置浏览器，不会自己弹页面）
+   - 前端：`export PATH="/c/nvm4w/nodejs:/c/ffmpeg/bin:$PATH" && cd client && npm run dev`（port 5173，Vite dev server，后台运行）
+7. **前后端起好后，把链接贴给用户手动点击打开**（不自动开页、不依赖 VSCode 任务）：
+   - 前端页面：`http://localhost:5173`
+   - 后端接口：`http://localhost:3000`
+   - 用户自行在浏览器（或 VSCode 里点链接）打开前端，Claude 只负责起服务+给链接，不代为打开页面
 
 ---
 
@@ -546,6 +546,20 @@ npm run lint      # ESLint
 - 备份：`E:\claude-vision-skill\memory-backup\`
 
 核心文件：`feedback_role_boundary.md`（角色边界）、`feedback_video_analysis_output_spec.md`（输出规范）、`feedback_batch_mode.md`（批处理策略）。
+
+---
+
+## 任务完成即接力推送（每完成一个小任务必做，最高优先级）
+
+**每完成一个小任务，立即按顺序做完三件事，不等用户催、不只是问"要不要提交"：**
+
+1. **摘要 + 接力**：把本小任务的「做了什么 / 改了哪些文件 / 结论 / 下一步」追加进当天 `conversation-log-<YYYYMMDD>.md`（不存在就新建）；涉及方案/决策的同步更新 `DECISIONS.md`。
+2. **推送**：`git add -A && git commit && git push`（在 main 上直接提交即可，本项目惯例），commit message 用中文写清这个小任务做了什么。
+3. 回复用户时附一句「已接力 + 已推送 commit `<短hash>`」。
+
+**目的**：防窗口随时中断丢进度（双机切换刚需）。这是项目铁律，和上面「新会话启动清单」对称——一个管"开窗口接上下文"，一个管"完成任务即落盘推送"。**漏做 = 违规**。
+
+> 仅以下三种可暂缓 git push（但仍必须在 log 里记一句进度）：① 纯只读/检索无文件改动 ② 用户明确说"先别提交/等下班一起推" ③ 改动还在半成品调试中、推上去会污染主干。
 
 ---
 

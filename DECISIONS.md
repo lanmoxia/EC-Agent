@@ -67,9 +67,11 @@
 
 ---
 
-## 🟢 VSCode 内自动打开前端页面（folderOpen 真全自动，2026-06-22 落地待验证）
+## ❌ VSCode 内自动打开前端页面（已回撤，2026-06-23）
 
-**需求**：用户要「起完前后端后，在 VSCode 内打开前端页面」（不弹外部 Chrome）。
+> **回撤决策（2026-06-23）**：用户决定恢复旧做法——「**Claude 进程起前后端 + 开启后给前后端链接，用户手动点击打开前端**」，不要自动开页。已删 `.vscode/{tasks,settings}.json`、CLAUDE.md 启动清单第5-6步改回（Claude 起前端 + 贴链接）。下方弯路/方案细节保留沉淀（避免日后重蹈"以为 openLocalhostLinks 能自动弹"的坑）。
+
+**需求（原）**：用户要「起完前后端后，在 VSCode 内打开前端页面」（不弹外部 Chrome）。
 
 **走过的弯路（如实记，避免重蹈）**：先以为 `workbench.browser.openLocalhostLinks` + 终端 echo 链接能自动弹——错。核实官方：该开关只改「**点击** localhost 链接走内置浏览器」的点击行为，不自动弹；且 Claude 命令输出不进 VSCode 可视终端缓冲区，link 扫描器扫不到。
 
@@ -81,7 +83,7 @@
 
 **待验证（用户 Reload Window 触发，会重启会话）**：首次点「Allow and run」→ 前端自动起 + 内置浏览器自动弹 5173。风险：① `simpleBrowser.show` 在 1.123 是否仍有效 ② problemMatcher `Local:.*5173` 是否匹配 Vite 输出。**未提交，验证通过再 commit。**
 
-**现状**：🟢 已落地，等用户 Reload 验证。
+**现状**：❌ 已回撤（2026-06-23，见顶部回撤决策）。
 
 ---
 
