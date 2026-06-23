@@ -25,6 +25,17 @@
 - 改：`CLAUDE.md`（启动清单插第3步 + 新增"完成即接力推送"铁律 + 上个会话的第5-6步回撤）、`DECISIONS.md`（VSCode 自动开页标 ❌ 回撤）
 - 删：`.vscode/{tasks,settings}.json`
 
+## 会话B（续）：进度追踪 + 任务编排系统（讨论→建成）
+- **用户质疑**「完成即接力推送」是否稳健，并举例：早先设的"每条回复加前缀防失忆"随时间衰减消失没人察觉。
+- **我的自评（不护短）**：完成即推送与那个前缀同源风险——靠"我记得"的软规则都会衰减；Stop 钩子只校验锚点行、**不查我是否真 commit**；只在完成后打点、中途崩裸奔（503 即例）。
+- **核心原则**：稳健 = ①状态在文件 + ②更新由钩子驱动，不靠我纪律。
+- **用户决策（AskUserQuestion 三选三推荐）**：钩子自动写锚点 / 新建独立钩子(不动 anchor-check) / 新建 TASKS.md / PROGRESS.md 每轮 commit+push。澄清"本地 add/commit 不跨机器"误区。
+- **建成（本轮）**：
+  · `.claude/hooks/progress-writer.js` + `.sh`：每轮写 PROGRESS.md(锚点+脏文件)、单独 commit/push、fail-open、含 DRYRUN 开关。**DRYRUN 已测：锚点解析/格式正确，dryrun 不写盘。**（路径坑：Windows node 读不到 MINGW /tmp，测试改用项目内 Windows 路径。）
+  · `TASKS.md`(三态台账,进行中=当前指针) + `PROGRESS.md`(种子) + `settings.json` 注册钩子(timeout 30) + `CLAUDE.md`(启动清单第4步+三层铁律) + `PROJECT-OVERVIEW.md`(基建/索引)。
+- **三层模型**：L1 钩子写实时位置(PROGRESS.md,每轮自动) / L2 我维护 TASKS.md+完成即推送 / L3 log+DECISIONS 叙事。
+- **生效说明**：钩子需**会话重启**才加载，下个新会话起 PROGRESS.md 自动每轮更新+推送；本会话仍手动种子。
+
 ## 待办（延续，均未动）
 - 投喂功能（含可灵按分镜上传）实测使用
 - 提示词打磨主线攒题材样本（五年级(1).mp4 待磨）

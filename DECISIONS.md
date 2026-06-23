@@ -15,7 +15,7 @@
 
 ---
 
-## 🟡 进度追踪稳健性（防失忆/防中断机制升级，2026-06-23 讨论中）
+## ✅ 进度追踪 + 任务编排系统（防失忆/防中断，2026-06-23 建成，钩子下会话生效）
 
 **背景/痛点**：用户质疑刚定的「完成即接力推送」是否稳健。关键洞察——用户早先设过"每条回复加前缀防失忆"，随时间**衰减消失、没人察觉**。任何只靠"我记得"的软规则（CLAUDE.md/memory 里的散文）都会和那个前缀同命。
 
@@ -36,9 +36,22 @@
 - **L3 已有**：DECISIONS.md / conversation-log 叙事。
 - backlog 复用现有 `TODO.md`；真正新增的只是"当前指针"，且由钩子维护。
 
-**待定岔路**：① `PROGRESS.md` 新建 vs 复用 TODO.md 加"当前"标记 ② 钩子自动写锚点 vs 我手动维护 ③ git 推送粒度（任务边界 vs 每步）④ 是否上真正的"任务编排"（in-session TaskCreate 系统）还是纯文件够用。
+**已定（2026-06-23 用户 AskUserQuestion 三选三推荐）**：
+1. **钩子自动写锚点** → 进度位置不靠我记。
+2. **新建独立钩子**（不动 anchor-check.js，隔离风险）。
+3. **新建 TASKS.md**（三态台账，TODO.md 保留作大方向工程拆解）。
+4. **PROGRESS.md 每轮 commit + push**（跨机器中途可见）；澄清：本地 add/commit 不跨机器，"让下个窗口看到文件状态"靠把脏文件清单写成文字进 PROGRESS.md。
 
-**现状**：🟡 讨论中，等用户选方向。
+**已建成（2026-06-23 本轮）**：
+- `.claude/hooks/progress-writer.js`（每轮写 PROGRESS.md：锚点+脏文件，单独 commit/push，全程 fail-open，含 PROGRESS_WRITER_DRYRUN 测试开关，省噪音跳过无变化）+ `progress-writer.sh`（双机定位 node）。**DRYRUN 已验证锚点解析/格式正确。**
+- `TASKS.md`（三态台账，"进行中"＝当前指针）+ `PROGRESS.md`（初始种子）。
+- `settings.json` Stop 钩子加 progress-writer（anchor-check 在前校验、progress-writer 在后写盘，timeout 30s 容网络推送）。
+- `CLAUDE.md`：启动清单第4步加"读 TASKS.md+PROGRESS.md"；铁律改为三层模型（L1钩子写实时位置/L2我维护任务台账+完成即推送/L3叙事）。
+- `PROJECT-OVERVIEW.md`：基建节+文件索引补 progress-writer/TASKS/PROGRESS。
+
+**残留缺口（如实记）**：① 钩子改动需**会话重启**才加载——本会话内 PROGRESS.md 仍是手动种子，下个新会话起才自动。② 每轮只推 PROGRESS.md 文字（脏文件清单），**不推半成品代码字节**——跨机器中途能拿到"地图"，但拿不到未提交的代码内容（要那个得另上 WIP 分支，暂不做）。③ 依赖 git 在钩子 shell 的 PATH 里（实测一直可用，失败则 fail-open 静默不推）。
+
+**现状**：✅ 已建成跑通(DRYRUN 验证)，**下个会话重启后钩子自动生效**；届时观察 PROGRESS.md 是否每轮自动更新+推送。
 
 ---
 
