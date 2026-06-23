@@ -3,22 +3,21 @@
 > 看这个文件 = 知道「当前任务内做到哪一步、哪些文件还没存」。
 > 粗粒度的「在做第几个任务」看 `TASKS.md`；来龙去脉看 `conversation-log` / `DECISIONS.md`。
 
-- 更新时间：2026-06-23T09:35:47.318Z
+- 更新时间：2026-06-24T00:52:44.854Z
 - 分支：main
-- 最新 commit：348aaa1 progress: 测试amend折叠第二轮
+- 最新 commit：1361885 progress: 新会话启动接力（环境检测+读台账日志+起服务验活）
 
 ## 当前位置（取自最近一次回复的锚点）
-- current_task：验证progress-writer钩子(自动生效+amend单条+解析失败保留旧值)
-- changed：钩子改amend重写单条progress(force-with-lease)+加!cur跳过闸,实测两轮commit总数不增43→43,真实Stop钩子已自动生效(fb44be4非手动)
-- next：确认无误后改启动清单(换机reset对齐)并提交钩子修复
+- current_task：新会话启动接力（环境检测+读台账日志+起服务验活）
+- changed：git已是最新/工作树干净；修正PATH拿到Node v22.22.3、双端依赖在；读完TASKS/PROGRESS/DECISIONS/最近log；后台起后端:3000(curl /api/tasks=200)+前端:5173(Vite ready)
+- next：等你指派下一个任务，建议续"五年级(1).mp4"打磨主线攒题材样本
 
 ## 工作树脏文件（git status --short）
 ```
-M .claude/hooks/progress-writer.js
-?? .tmp-real.jsonl
+(干净，无未提交改动)
 ```
 
 ## 原始锚点行
 ```
-ANCHOR: lanmoxia | current_task=验证progress-writer钩子(自动生效+amend单条+解析失败保留旧值) | changed=钩子改amend重写单条progress(force-with-lease)+加!cur跳过闸,实测两轮commit总数不增43→43,真实Stop钩子已自动生效(fb44be4非手动) | next=确认无误后改启动清单(换机reset对齐)并提交钩子修复
+ANCHOR: lanmoxia | current_task=新会话启动接力（环境检测+读台账日志+起服务验活） | changed=git已是最新/工作树干净；修正PATH拿到Node v22.22.3、双端依赖在；读完TASKS/PROGRESS/DECISIONS/最近log；后台起后端:3000(curl /api/tasks=200)+前端:5173(Vite ready) | next=等你指派下一个任务，建议续"五年级(1).mp4"打磨主线攒题材样本
 ```
