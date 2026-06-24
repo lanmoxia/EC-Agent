@@ -3,14 +3,14 @@
 > 看这个文件 = 知道「当前任务内做到哪一步、哪些文件还没存」。
 > 粗粒度的「在做第几个任务」看 `TASKS.md`；来龙去脉看 `conversation-log` / `DECISIONS.md`。
 
-- 更新时间：2026-06-24T01:00:41.449Z
+- 更新时间：2026-06-29T01:01:04.677Z
 - 分支：main
-- 最新 commit：0436bbc chore: 取消 VSR 去硬字幕任务(现阶段模型不可用) + 今日log
+- 最新 commit：882147e progress: 新会话启动接力（读台账+起前后端验活）
 
 ## 当前位置（取自最近一次回复的锚点）
-- current_task：按你决定取消 VSR 任务 + 如实回答"是否读了项目总览"和启动费 token 的原因
-- changed：改 TASKS.md/DECISIONS.md 删 VSR 标❌、建 conversation-log-20260624.md、commit+push `0436bbc`；坦白本次启动我跳过了 PROJECT-OVERVIEW.md 未读
-- next：等你定是否精简启动清单（把读总览改成按需读）
+- current_task：新会话启动接力（读台账+起前后端验活）
+- changed：未改文件；后台起 server(:3000) 与 client(:5173)，curl 两端均 200；读完 TASKS/PROGRESS/确认 Node22+依赖齐全
+- next：等你指派任务（候选：五年级(1).mp4 提示词打磨 / 投喂功能实测 / 豆包标签方案）
 
 ## 工作树脏文件（git status --short）
 ```
@@ -19,5 +19,5 @@
 
 ## 原始锚点行
 ```
-ANCHOR: lanmoxia | current_task=按你决定取消 VSR 任务 + 如实回答"是否读了项目总览"和启动费 token 的原因 | changed=改 TASKS.md/DECISIONS.md 删 VSR 标❌、建 conversation-log-20260624.md、commit+push `0436bbc`；坦白本次启动我跳过了 PROJECT-OVERVIEW.md 未读 | next=等你定是否精简启动清单（把读总览改成按需读）
+ANCHOR: lanmoxia | current_task=新会话启动接力（读台账+起前后端验活） | changed=未改文件；后台起 server(:3000) 与 client(:5173)，curl 两端均 200；读完 TASKS/PROGRESS/确认 Node22+依赖齐全 | next=等你指派任务（候选：五年级(1).mp4 提示词打磨 / 投喂功能实测 / 豆包标签方案）
 ```
