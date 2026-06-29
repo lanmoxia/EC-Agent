@@ -1,4 +1,4 @@
-# start.ps1 — 一键拉起 EC-Agent 前后端（各开一个新 PowerShell 窗口常驻）
+﻿# start.ps1 — 一键拉起 EC-Agent 前后端（各开一个新 PowerShell 窗口常驻）
 # 双击桌面快捷方式即可。关掉对应窗口 = 停掉对应服务。
 
 $ErrorActionPreference = "Stop"
