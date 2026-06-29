@@ -3,14 +3,14 @@
 > 看这个文件 = 知道「当前任务内做到哪一步、哪些文件还没存」。
 > 粗粒度的「在做第几个任务」看 `TASKS.md`；来龙去脉看 `conversation-log` / `DECISIONS.md`。
 
-- 更新时间：2026-06-29T01:36:36.253Z
+- 更新时间：2026-06-29T01:38:57.061Z
 - 分支：main
-- 最新 commit：e983b0a progress: 停掉会话起的两端释放端口供桌面快捷方式使用
+- 最新 commit：3cbef08 fix: start.ps1 转 UTF-8 BOM 修复 PowerShell 中文解析闪退
 
 ## 当前位置（取自最近一次回复的锚点）
-- current_task：停掉会话起的两端释放端口供桌面快捷方式使用
-- changed：TaskStop 停后端b60ofy41g+前端bzxzzrmwt；Vite子进程残留占5173，PowerShell按端口杀PID 15808；curl确认 :3000/:5173 均=000
-- next：等你双击「启动 EC-Agent」验证或指派任务
+- current_task：排查并修复桌面快捷方式闪退
+- changed：手动跑 start.ps1 复现解析错误(第9行)→定位为UTF-8无BOM中文被GBK误读→PowerShell转文件为UTF-8 BOM→Parser校验无语法错→提交推送 commit 3cbef08
+- next：等你再次双击「启动 EC-Agent」确认不再闪退
 
 ## 工作树脏文件（git status --short）
 ```
@@ -19,5 +19,5 @@
 
 ## 原始锚点行
 ```
-ANCHOR: lanmoxia | current_task=停掉会话起的两端释放端口供桌面快捷方式使用 | changed=TaskStop 停后端b60ofy41g+前端bzxzzrmwt；Vite子进程残留占5173，PowerShell按端口杀PID 15808；curl确认 :3000/:5173 均=000 | next=等你双击「启动 EC-Agent」验证或指派任务
+ANCHOR: lanmoxia | current_task=排查并修复桌面快捷方式闪退 | changed=手动跑 start.ps1 复现解析错误(第9行)→定位为UTF-8无BOM中文被GBK误读→PowerShell转文件为UTF-8 BOM→Parser校验无语法错→提交推送 commit 3cbef08 | next=等你再次双击「启动 EC-Agent」确认不再闪退
 ```
