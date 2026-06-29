@@ -3,14 +3,14 @@
 > 看这个文件 = 知道「当前任务内做到哪一步、哪些文件还没存」。
 > 粗粒度的「在做第几个任务」看 `TASKS.md`；来龙去脉看 `conversation-log` / `DECISIONS.md`。
 
-- 更新时间：2026-06-29T01:38:57.061Z
+- 更新时间：2026-06-30T00:57:35.473Z
 - 分支：main
-- 最新 commit：3cbef08 fix: start.ps1 转 UTF-8 BOM 修复 PowerShell 中文解析闪退
+- 最新 commit：1f42caa progress: 改造为静默启动(隐藏命令行窗口)+配套停止
 
 ## 当前位置（取自最近一次回复的锚点）
-- current_task：排查并修复桌面快捷方式闪退
-- changed：手动跑 start.ps1 复现解析错误(第9行)→定位为UTF-8无BOM中文被GBK误读→PowerShell转文件为UTF-8 BOM→Parser校验无语法错→提交推送 commit 3cbef08
-- next：等你再次双击「启动 EC-Agent」确认不再闪退
+- current_task：接收用户启动指令(本轮停止pull/不起前后端)
+- changed：未改文件，确认本次跳过 git pull 和前后端启动
+- next：等待用户的视频分析或具体任务指令
 
 ## 工作树脏文件（git status --short）
 ```
@@ -19,5 +19,5 @@
 
 ## 原始锚点行
 ```
-ANCHOR: lanmoxia | current_task=排查并修复桌面快捷方式闪退 | changed=手动跑 start.ps1 复现解析错误(第9行)→定位为UTF-8无BOM中文被GBK误读→PowerShell转文件为UTF-8 BOM→Parser校验无语法错→提交推送 commit 3cbef08 | next=等你再次双击「启动 EC-Agent」确认不再闪退
+ANCHOR: lanmoxia | current_task=接收用户启动指令(本轮停止pull/不起前后端) | changed=未改文件，确认本次跳过 git pull 和前后端启动 | next=等待用户的视频分析或具体任务指令
 ```
