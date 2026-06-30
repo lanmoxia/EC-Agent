@@ -32,7 +32,7 @@ try { require("dotenv").config({ path: path.resolve(__dirname, ".env") }); } cat
 
 const BASE_URL = process.env.DASHSCOPE_BASE_URL || "https://dashscope.aliyuncs.com/compatible-mode/v1";
 const API_KEY = process.env.DASHSCOPE_API_KEY || "sk-e5131436614d42d5bd84d6bd0544a446";
-const MODEL = process.env.VISION_MODEL || "qwen3.5-omni-plus";
+const MODEL = process.env.VISION_MODEL || "qwen3.5-omni-flash";
 
 const MAX_INLINE_SIZE = 50 * 1024 * 1024;
 
